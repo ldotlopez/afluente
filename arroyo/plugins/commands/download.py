@@ -68,9 +68,17 @@ class DownloadConsoleCommand(kit.CommandExtension):
             help='keywords')
     )
 
-    def main(self, filters, **kwargs):
-        q = kit.Query(**filters)
-        self.shell.search(q)
+    def main(self, filters=None, keywords=None, from_config=True):
+        if filters:
+            q = kit.Query(**filters)
+        elif keywords:
+            q = kit.Query(' '.join(keywords))
+        elif from_config:
+            raise NotImplemented()
+        else:
+            raise NotImplemented()
+
+        return self.shell.search(q)
 
 
 __arroyo_extensions__ = [

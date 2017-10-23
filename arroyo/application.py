@@ -21,7 +21,7 @@
 from appkit.blocks import quicklogging
 
 
-from arroyo import kit
+from arroyo import kit, helpers
 
 
 class Arroyo(kit.Application):
@@ -59,7 +59,10 @@ class Arroyo(kit.Application):
                 self.logger.info(msg)
 
     def search(self, query):
-        print(repr(query))
+        providers = self.get_extensions_for(kit.ProviderExtension)
+        scanner = helpers.Scanner(logger=self.logger)
+        results = scanner.scan(query, providers)
+        print(repr(results))
 
     def consume_application_parameters(self, parameters):
         quiet = parameters.pop('quiet')

@@ -67,7 +67,19 @@ class Query:
     """
     _PATTERN = r'^[a-z]+$'
 
-    def __init__(self, **params):
+    def __init__(self, *args, **params):
+        if args:
+            if len(args) != 1:
+                msg = "Keywords must be a single string"
+                raise TypeError(msg)
+
+            keywords = str(args[0])
+            raise NotImplementedError("keywords='{}'".format(keywords))
+
+        if not params:
+            msg = "not enoght info for a Query"
+            raise ValueError(msg)
+
         for (key, value) in params.items():
             key, value = self._validate(key, value)
             setattr(self, key, value)
