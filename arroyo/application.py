@@ -26,14 +26,19 @@ from appkit.blocks import (
 
 class Arroyo(kit.ConsoleApplicationMixin, kit.Application):
     DEFAULT_PLUGINS = [
-        'commands.settings'
+        'commands.download',
+        'commands.settings',
+
+        'providers.eztv'
     ]
 
     def __init__(self):
         super().__init__(name='arroyo')
-        self.register_extension_class(ScanCommand)
         for plugin in self.DEFAULT_PLUGINS:
             self.load_plugin(plugin)
+
+    def search(self, query):
+        print(repr(query))
 
     def consume_application_parameters(self, parameters):
         quiet = parameters.pop('quiet')
@@ -53,11 +58,3 @@ class Arroyo(kit.ConsoleApplicationMixin, kit.Application):
 
     def main(self):
         print('arroyo is up and running')
-
-
-class ScanCommand(kit.ConsoleCommandExtension):
-    __extension_name__ = 'scan'
-    HELP = 'Scan providers'
-
-    def main(self):
-        print(repr(self.shell))

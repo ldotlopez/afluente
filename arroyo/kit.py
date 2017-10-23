@@ -19,7 +19,7 @@
 
 
 from appkit import application
-from appkit.application import console
+from appkit.application import console, Parameter
 from appkit.blocks import extensionmanager
 
 
