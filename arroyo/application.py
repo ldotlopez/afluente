@@ -36,10 +36,27 @@ class Arroyo(kit.Application):
         'providers.eztv'
     ]
 
+    DEFAULT_SETTINGS = {
+        'log-level': 'INFO',
+        'plugins.commands.settings.enabled': False
+    }
+
     def __init__(self):
         super().__init__(name='arroyo')
+        self.register_extension_point(kit.ProviderExtension)
+
+        plugin_enabled_key_tmpl = 'plugins.{name}.enabled'
+
         for plugin in self.DEFAULT_PLUGINS:
-            self.load_plugin(plugin)
+            settings_key = plugin_enabled_key_tmpl.format(name=plugin)
+
+            if self.settings.get(settings_key, True):
+                self.load_plugin(plugin)
+
+            else:
+                msg = 'Plugin "{name}" disabled by config'
+                msg = msg.format(name=plugin)
+                self.logger.info(msg)
 
     def search(self, query):
         print(repr(query))
@@ -62,6 +79,3 @@ class Arroyo(kit.Application):
 
     def main(self):
         print('arroyo is up and running')
-
-    def get_shell(self):
-        return self

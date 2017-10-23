@@ -18,7 +18,6 @@
 # USA.
 
 
-import abc
 import re
 
 
@@ -27,34 +26,33 @@ from appkit.application import console
 from appkit.blocks import extensionmanager
 
 
-# Short-hand for Parameter
+# Short-hands
 Parameter = application.Parameter
+Extension = application.Extension
 
 
-class CommandExtension(console.ConsoleCommandExtension):
+class CommandExtension(Extension, console.ConsoleCommandExtension):
     """
-    Extension for commands
+    Extension for commands. Mixing with ConsoleCommandExtension
     """
-    def __init__(self, shell, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
-        self.shell = shell
+    pass
 
 
-class DownloaderExtension(application.Extension):
+class DownloaderExtension(Extension):
     """
     Extension for downloaders
     """
     pass
 
 
-class FilterExtension(application.Extension):
+class FilterExtension(Extension):
     """
     Extension for filters
     """
     pass
 
 
-class ProviderExtension(application.Extension):
+class ProviderExtension(Extension):
     """
     Extension for providers
     """
@@ -137,10 +135,5 @@ class Application(ConsoleApplicationMixin, application.Application):
             msg = msg.format(plugin_name=plugin_name, msg=str(e))
             self.logger.error(msg)
 
-    def get_extension(self, extension_point, name, *args, **kwargs):
-        return super().get_extension(extension_point, name, self.get_shell(),
-                                     *args, **kwargs)
-
-    @abc.abstractmethod
     def get_shell(self):
-        raise NotImplementedError()
+        return self
