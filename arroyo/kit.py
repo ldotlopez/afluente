@@ -17,6 +17,9 @@ class Application(application.Application):
     def load_plugin(self, plugin_name, *args, **kwargs):
         try:
             super().load_plugin(plugin_name, *args, **kwargs)
+            msg = "Loaded plugin {name}"
+            msg = msg.format(name=plugin_name)
+            self.logger.debug(msg)
         except extensionmanager.PluginNotLoadedError as e:
             msg = "Can't load plugin «{plugin_name}»: {msg}"
             msg = msg.format(plugin_name=plugin_name, msg=str(e))
