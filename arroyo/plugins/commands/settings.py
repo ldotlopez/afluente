@@ -21,21 +21,21 @@
 from arroyo import kit
 
 
-class SettingsSet(kit.ConsoleCommandExtension):
+class SettingsSet(kit.CommandExtension):
     PARAMETERS = []
 
     def main(self):
         print("settings set")
 
 
-class SettingsGet(kit.ConsoleCommandExtension):
+class SettingsGet(kit.CommandExtension):
     PARAMETERS = []
 
     def main(self):
         print("settings get")
 
 
-class SettingsConsoleCommand(kit.ConsoleCommandExtension):
+class SettingsConsoleCommand(kit.CommandExtension):
     __extension_name__ = 'settings'
     CHILDREN = [
         ('set', SettingsSet),

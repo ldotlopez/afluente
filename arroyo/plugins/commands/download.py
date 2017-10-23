@@ -38,10 +38,10 @@
 
 
 import appkit
-from arroyo import kit, query
+from arroyo import kit
 
 
-class DownloadConsoleCommand(kit.ConsoleCommandExtension):
+class DownloadConsoleCommand(kit.CommandExtension):
     __extension_name__ = 'download'
 
     PARAMETERS = (
@@ -69,7 +69,7 @@ class DownloadConsoleCommand(kit.ConsoleCommandExtension):
     )
 
     def main(self, filters, **kwargs):
-        q = query.Query(**filters)
+        q = kit.Query(**filters)
         self.shell.search(q)
 
 

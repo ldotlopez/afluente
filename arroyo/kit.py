@@ -18,22 +18,114 @@
 # USA.
 
 
+import abc
+import re
+
+
 from appkit import application
-from appkit.application import console, Parameter
+from appkit.application import console
 from appkit.blocks import extensionmanager
 
 
-class ConsoleCommandExtension(console.ConsoleCommandExtension):
+# Short-hand for Parameter
+Parameter = application.Parameter
+
+
+class CommandExtension(console.ConsoleCommandExtension):
+    """
+    Extension for commands
+    """
     def __init__(self, shell, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
         self.shell = shell
 
 
+class DownloaderExtension(application.Extension):
+    """
+    Extension for downloaders
+    """
+    pass
+
+
+class FilterExtension(application.Extension):
+    """
+    Extension for filters
+    """
+    pass
+
+
+class ProviderExtension(application.Extension):
+    """
+    Extension for providers
+    """
+    pass
+
+
+class Query:
+    """
+    Represents a user query.
+
+    All init parameters are validated and turned into object attributes
+    """
+    _PATTERN = r'^[a-z]+$'
+
+    def __init__(self, **params):
+        for (key, value) in params.items():
+            key, value = self._validate(key, value)
+            setattr(self, key, value)
+
+        self._attrs = tuple(params.keys())
+
+    @classmethod
+    def _validate(cls, attr, value):
+        def _is_basic_type(x):
+            return isinstance(x, (int, float, bool, str))
+
+        attr = str(attr)
+        attr = attr.replace('-', '_')
+
+        parts = attr.split('_')
+
+        if not all([re.match(cls._PATTERN, attr) for attr in parts]):
+            raise ValueError(attr)
+
+        return attr, value
+
+    def __contains__(self, attr):
+        return attr in self._attrs
+
+    def __iter__(self):
+        yield from self._attrs
+
+    def __setattr__(self, attr, value):
+        if hasattr(self, '_attrs'):
+            raise TypeError()
+
+        return super().__setattr__(attr, value)
+
+    def __repr__(self):
+        items = ", ".join(
+            ["{}='{}'".format(attr, getattr(self, attr)) for attr in self]
+        )
+        return '<{clsname}({items}) object at 0x{id:x}>'.format(
+            clsname='arroyo.query.Query',
+            items=items,
+            id=id(self)
+        )
+
+
 class ConsoleApplicationMixin(console.ConsoleApplicationMixin):
-    COMMAND_EXTENSION_POINT = ConsoleCommandExtension
+    """
+    Reconfigure ConsoleApplicationMixin to use our CommandExtension
+    """
+    COMMAND_EXTENSION_POINT = CommandExtension
 
 
-class Application(application.Application):
+class Application(ConsoleApplicationMixin, application.Application):
+    """
+    Implement application model.
+    Mix necessary mixins and override some methods
+    """
     def load_plugin(self, plugin_name, *args, **kwargs):
         try:
             super().load_plugin(plugin_name, *args, **kwargs)
@@ -46,5 +138,9 @@ class Application(application.Application):
             self.logger.error(msg)
 
     def get_extension(self, extension_point, name, *args, **kwargs):
-        return super().get_extension(extension_point, name, self,
+        return super().get_extension(extension_point, name, self.get_shell(),
                                      *args, **kwargs)
+
+    @abc.abstractmethod
+    def get_shell(self):
+        raise NotImplementedError()

@@ -18,13 +18,17 @@
 # USA.
 
 
+from appkit.blocks import quicklogging
+
+
 from arroyo import kit
-from appkit.blocks import (
-    quicklogging
-)
 
 
-class Arroyo(kit.ConsoleApplicationMixin, kit.Application):
+class Arroyo(kit.Application):
+    """
+    Implement arroyo over customized kit.Application
+    """
+
     DEFAULT_PLUGINS = [
         'commands.download',
         'commands.settings',
@@ -58,3 +62,6 @@ class Arroyo(kit.ConsoleApplicationMixin, kit.Application):
 
     def main(self):
         print('arroyo is up and running')
+
+    def get_shell(self):
+        return self

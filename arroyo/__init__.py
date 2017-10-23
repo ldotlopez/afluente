@@ -19,7 +19,9 @@
 
 
 from .application import Arroyo
+from .kit import Query
 
 __all__ = [
-    'Arroyo'
+    'Arroyo',
+    'Query'
 ]
