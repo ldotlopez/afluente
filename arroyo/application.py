@@ -1,20 +1,39 @@
-from appkit import application
-from appkit.application import console
-# from appkit.blocks import quicklogging
+from . import kit
+from appkit.blocks import (
+    quicklogging
+)
 
 
-class Arroyo(console.ConsoleAppMixin, application.App):
+class Arroyo(kit.ConsoleApplicationMixin, kit.Application):
+    DEFAULT_PLUGINS = []
+
     def __init__(self):
         super().__init__(name='arroyo')
+        self.register_extension_class(ScanCommand)
 
-    def main(self, verbose=0, quiet=0, config_files=None, plugins=None):
-        if config_files is None:
-            config_files = []
+    def consume_application_arguments(self, arguments):
+        log_level = (
+            quicklogging.Level.WARNING +
+            arguments.verbose -
+            arguments.quiet)
+        self.logger.setLevel(log_level.value)
+        delattr(arguments, 'quiet')
+        delattr(arguments, 'verbose')
 
-        if plugins is None:
-            plugins = []
+        plugins = self.DEFAULT_PLUGINS + arguments.plugins
+        for plugin in plugins:
+            self.load_plugin(plugin)
+        delattr(arguments, 'plugins')
 
-        # log_level = quicklogging.Level.WARNING + verbose - quiet
-        # self.logger.setLevel(log_level.value)
+        delattr(arguments, 'config_files')
 
+    def main(self):
         print('arroyo is up and running')
+
+
+class ScanCommand(kit.ConsoleCommandExtension):
+    __extension_name__ = 'scan'
+    HELP = 'Scan providers'
+
+    def main(self):
+        print(repr(self.shell))
