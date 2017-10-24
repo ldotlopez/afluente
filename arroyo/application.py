@@ -42,7 +42,10 @@ class Arroyo(kit.Application):
     }
 
     def __init__(self):
-        super().__init__(name='arroyo')
+        super().__init__(
+            name='arroyo',
+            logger=quicklogging.QuickLogger(level=quicklogging.Level.WARNING))
+
         self.register_extension_point(kit.ProviderExtension)
 
         plugin_enabled_key_tmpl = 'plugins.{name}.enabled'
@@ -58,27 +61,43 @@ class Arroyo(kit.Application):
                 msg = msg.format(name=plugin)
                 self.logger.info(msg)
 
+    def get_providers(self):
+        return [(name, self.get_provider(name))
+                for name in
+                self.get_extension_names_for(kit.ProviderExtension)]
+
+    def get_provider(self, name):
+        default_settings_key_tmpl = 'plugins.providers.{name}.default-{key}'
+        override_settings_key_tmpl = 'plugins.providers.{name}.force-{key}'
+
+        # Build provider's defaults and overrides from settings
+        fields = ['language', 'type']
+
+        overrides = {}
+        defaults = {}
+
+        for field in fields:
+            default_key = default_settings_key_tmpl.format(name=name,
+                                                           key=field)
+            override_key = default_settings_key_tmpl.format(name=name,
+                                                            key=field)
+            default_value = self.settings.get(default_key, None)
+            override_value = self.settings.get(override_key, None)
+
+            if default_value:
+                default_value[name][field] = default_value
+
+            if override_value:
+                overrides[name][field] = override_value
+
+        return self.get_extension(kit.ProviderExtension, name,
+                                  defaults=defaults, overrides=overrides)
+
     def search(self, query):
-        providers = self.get_extensions_for(kit.ProviderExtension)
+        providers = self.get_providers()
         scanner = helpers.Scanner(logger=self.logger)
         results = scanner.scan(query, providers)
         print(repr(results))
-
-    def consume_application_parameters(self, parameters):
-        quiet = parameters.pop('quiet')
-        verbose = parameters.pop('verbose')
-        log_level = quicklogging.Level.WARNING + verbose - quiet
-        self.logger.setLevel(log_level.value)
-
-        plugins = parameters.pop('plugins')
-        for plugin in plugins:
-            self.load_plugin(plugin)
-
-        config_files = parameters.pop('config_files')
-        if config_files:
-            msg = "Configuration files ignored: {files}"
-            msg = msg.format(files=', '.join(config_files))
-            self.logger.warning(msg)
 
     def main(self):
         print('arroyo is up and running')

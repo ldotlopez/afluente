@@ -1,0 +1,10 @@
+{
+    "plugins": {
+        "provideres": {
+            "eztv": {
+                "default-language": "eng-us",
+                "default-type": "episode"
+            }
+        }
+    }
+}

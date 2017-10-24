@@ -45,7 +45,6 @@ class DownloadConsoleCommand(kit.CommandExtension):
     __extension_name__ = 'download'
 
     PARAMETERS = (
-        # Selecting
         kit.Parameter(
             'from-config',
             action='store_true',

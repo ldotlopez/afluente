@@ -26,5 +26,3 @@ class Scanner:
             msg = "…scanning '{name}'"
             msg = msg.format(name=name)
             self.logger.info(msg)
-
-        return []

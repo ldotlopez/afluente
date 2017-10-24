@@ -56,7 +56,26 @@ class ProviderExtension(Extension):
     """
     Extension for providers
     """
-    pass
+    def __init__(self, *args, defaults=None, overrides=None, **kwargs):
+        defaults = defaults or {}
+        overrides = overrides or {}
+
+        for d in defaults, overrides:
+            if not isinstance(d, dict):
+                raise TypeError(d)
+
+            check = all([
+                isinstance(k, str) and k and
+                isinstance(v, str) and v
+                for (k, v) in d.items()
+            ])
+            if not check:
+                raise ValueError(d)
+
+        self.defaults = defaults
+        self.overrides = overrides
+
+        super().__init__(*args, **kwargs)
 
 
 class Query:
