@@ -18,13 +18,20 @@
 # USA.
 
 
+import abc
 import re
 
 
+import bs4
 from appkit import application
 from appkit.application import console
 from appkit.blocks import extensionmanager
-
+from arroyo.dbmodels import (
+    Source,
+    SourceTag,
+    Episode,
+    Movie
+)
 
 # Short-hands
 Parameter = application.Parameter
@@ -48,6 +55,25 @@ class DownloaderExtension(Extension):
 class FilterExtension(Extension):
     """
     Extension for filters
+    """
+    HANDLES = ()
+
+    def can_handle(self, key):
+        return key in self.HANDLES
+
+    @abc.abstractmethod
+    def filter(self, key, value, item):
+        pass
+
+    def apply(self, key, value, iterable):
+        return filter(
+            lambda item: self.filter(key, value, item),
+            iterable)
+
+
+class SorterExtension(Extension):
+    """
+    Extension for sorters
     """
     pass
 
@@ -77,6 +103,58 @@ class ProviderExtension(Extension):
 
         super().__init__(*args, **kwargs)
 
+    def compatible_uri(self, uri):
+        attr_name = 'URI_PATTERNS'
+        attr = getattr(self, attr_name, None)
+
+        if not (isinstance(attr, (list, tuple)) and len(attr)):
+            msg = "Class {cls} must override {attr} attribute"
+            msg = msg.format(self=self.__class__.__name__, attr=attr_name)
+            raise NotImplementedError(msg)
+
+        RegexType = type(re.compile(r''))
+        for pattern in attr:
+            if isinstance(pattern, RegexType):
+                if pattern.search(uri):
+                    return True
+            else:
+                if re.search(pattern, uri):
+                    return True
+
+        return False
+
+    @abc.abstractmethod
+    def paginate(self, uri):
+        yield uri
+
+    @abc.abstractmethod
+    def get_query_uri(self, query):
+        return None
+
+    @abc.abstractmethod
+    def fetch(self, uri):
+        with self.shell.get_async_http_client() as client:
+            return (yield from client.fetch(uri))
+
+    @abc.abstractmethod
+    def parse(self, buffer):
+        raise NotImplementedError()
+
+    def __unicode__(self):
+        return "Provider({name})".format(
+            name=self.__extension_name__)
+
+    __str__ = __unicode__
+
+
+class BS4ParserProviderExtensionMixin:
+    def parse(self, buffer):
+        return self.parse_soup(bs4.BeautifulSoup(buffer, "html.parser"))
+
+    @abc.abstractmethod
+    def parse_soup(self, soup):
+        raise NotImplementedError()
+
 
 class Query:
     """
@@ -86,7 +164,7 @@ class Query:
     """
     _PATTERN = r'^[a-z]+$'
 
-    def __init__(self, *args, **params):
+    def __init__(self, *args, type='source', **params):
         if args:
             if len(args) != 1:
                 msg = "Keywords must be a single string"
@@ -99,11 +177,16 @@ class Query:
             msg = "not enoght info for a Query"
             raise ValueError(msg)
 
+        if 'type' not in params:
+            params['type'] = type
+
+        _attrs = []
         for (key, value) in params.items():
             key, value = self._validate(key, value)
+            _attrs.append(key)
             setattr(self, key, value)
 
-        self._attrs = tuple(params.keys())
+        self._attrs = tuple(_attrs)
 
     @classmethod
     def _validate(cls, attr, value):
@@ -120,11 +203,68 @@ class Query:
 
         return attr, value
 
+    def __str__(self):
+        qdict = self.asdict()
+
+        def _get_base_string(attr='name'):
+            ret = None
+
+            try:
+                return getattr(self, attr).strip()
+            except AttributeError:
+                pass
+
+            try:
+                return getattr(self, attr + '-glob').replace('*', ' ').strip()
+            except AttributeError:
+                pass
+
+            return None
+
+        def _source_base_string():
+            return _get_base_string('name')
+
+        def _episode_base_string():
+            ret = _get_base_string('series')
+            if not ret:
+                return _source_base_string()
+
+            try:
+                ret += ' {}'.format(self.modifier)
+            except AttributeError:
+                pass
+
+            try:
+                ret += ' S{:02d}'.format(self.season)
+            except AttributeError:
+                return ret
+
+            try:
+                ret += ' E{:02d}'.format(self.number)
+            except AttributeError:
+                return ret
+
+        handlers = {
+            'source': _source_base_string,
+            'episode': _episode_base_string
+        }
+
+        try:
+            return handlers[self.type]()
+        except KeyError:
+            return None
+
+    def asdict(self):
+        return {
+            x: getattr(self, x) for x in self
+        }
+
     def __contains__(self, attr):
         return attr in self._attrs
 
     def __iter__(self):
-        yield from self._attrs
+        if hasattr(self, '_attrs'):
+            yield from self._attrs
 
     def __setattr__(self, attr, value):
         if hasattr(self, '_attrs'):

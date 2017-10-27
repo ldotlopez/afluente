@@ -34,9 +34,9 @@ PARSEABLE_TYPES = ['']
 ENTITY_FIELD_TRANSLATIONS = {
     'episode': [
         ('title', 'series'),
-        ('season', 'season'),
-        ('episode', 'number', int),
         ('year', 'modifier', str),
+        ('season', 'season'),
+        ('episode', 'number', int)
     ],
 
     'movie': [
@@ -115,9 +115,9 @@ class MediaParser:
         self.logger = logger or Null
         self.cache = ParseCache()
 
-    def parse(self, source):
+    def parse(self, source, metatags=None):
         type = source.type
-        entity, meta, other = None, {}, {}
+        entity, metatags, other = None, metatags or {}, {}
 
         # Skip detection
         if type == 'other':
@@ -125,12 +125,11 @@ class MediaParser:
 
         elif type in ['episode', 'movie', None]:
             # Episode, Movies: parse by guessit
-            guess_data = self._guessit_parse(source)
-            entity, meta, other = self.transform_guessit_data(guess_data)
+            entity, meta, other = self._guessit_parse(source, metatags={})
 
         elif type in ['ebook']:
             # Book: parse by _book_parse
-            ebook_data, meta = self._ebook_parse(source)
+            ebook_data, meta, other = self._ebook_parse(source, metatags={})
 
         # Warn about leftovers
         for (key, value) in other.items():
@@ -140,24 +139,27 @@ class MediaParser:
 
         return entity, meta
 
-    def _ebook_parse(self, source):
+    def _ebook_parse(self, source, metatags):
         try:
-            return None, {
-                'author': source.meta['ebook.author'],
-                'title': source.meta['ebook.title'],
-            }
+            return (
+                None,
+                {
+                    'author': metatags['ebook.author'],
+                    'title': metatags['ebook.title'],
+                },
+                {})
         except KeyError:
-            return None, {}
+            return None, {}, {}
 
-    def _guessit_parse(self, data):
+    def _guessit_parse(self, source, metatags):
         # Release teams ofter are shadowed by 'distributors' (eztv, rartv,
         # etc...) because guessit doesn't do a perfect job.
         # In order to fix this we made a "preprocessing" to extract (and
         # remove) known distributors from source's name and add distribution
         # field into info after processing source's name with guessit.
 
-        name = data.name
-        type = data.type
+        name = source.name
+        type = source.type
 
         distributors = set()
 
@@ -263,11 +265,11 @@ class MediaParser:
                 data['name'].lower().startswith('12 monkeys')):
             info['series'] = '12 Monkeys'
 
-        return info
+        entity, tags, other = self._guessit_transform_data(info)
 
-    def transform_guessit_data(self, guess_data):
-        guess_data = guess_data.copy()
+        return entity, tags, other
 
+    def _guessit_transform_data(self, guess_data):
         # Force limits with some introspection
         type = guess_data.pop('type')
         entity_cls_name = ''.join(x.capitalize()
@@ -297,8 +299,6 @@ class MediaParser:
         return entity, tags, guess_data
 
 
-
- 
 class ParseCache(cache.DiskCache):
     def __init__(self, *args, **kwargs):
         basedir = (

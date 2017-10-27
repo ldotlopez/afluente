@@ -18,10 +18,27 @@
 # USA.
 
 
-from appkit.blocks import quicklogging
+import asyncio
+import contextlib
 
 
-from arroyo import kit, helpers
+from appkit import (
+    Null,
+    utils
+)
+from appkit.blocks import (
+    cache,
+    httpclient,
+    quicklogging
+)
+
+
+from arroyo import kit
+from arroyo.helpers import (
+    filterengine,
+    mediaparser,
+    scanner
+)
 
 
 class Arroyo(kit.Application):
@@ -33,7 +50,11 @@ class Arroyo(kit.Application):
         'commands.download',
         'commands.settings',
 
-        'providers.eztv'
+        'filters.sourcefields',
+
+        'providers.epublibre',
+        'providers.eztv',
+        'providers.torrentapi'
     ]
 
     DEFAULT_SETTINGS = {
@@ -46,6 +67,7 @@ class Arroyo(kit.Application):
             name='arroyo',
             logger=quicklogging.QuickLogger(level=quicklogging.Level.WARNING))
 
+        self.register_extension_point(kit.FilterExtension)
         self.register_extension_point(kit.ProviderExtension)
 
         plugin_enabled_key_tmpl = 'plugins.{name}.enabled'
@@ -79,8 +101,8 @@ class Arroyo(kit.Application):
         for field in fields:
             default_key = default_settings_key_tmpl.format(name=name,
                                                            key=field)
-            override_key = default_settings_key_tmpl.format(name=name,
-                                                            key=field)
+            override_key = override_settings_key_tmpl.format(name=name,
+                                                             key=field)
             default_value = self.settings.get(default_key, None)
             override_value = self.settings.get(override_key, None)
 
@@ -93,11 +115,77 @@ class Arroyo(kit.Application):
         return self.get_extension(kit.ProviderExtension, name,
                                   defaults=defaults, overrides=overrides)
 
+    def get_filters(self):
+        return self.get_extensions_for(kit.FilterExtension)
+
+    def get_filter(self, name):
+        return self.get_extensions(kit.FilterExtension, name)
+
     def search(self, query):
-        providers = self.get_providers()
-        scanner = helpers.Scanner(logger=self.logger)
-        results = scanner.scan(query, providers)
-        print(repr(results))
+        def _post_process(items):
+            mp = mediaparser.MediaParser(logger=self.logger.getChild('mediaparser'))
+            for src, metatags in items:
+                entity, tags = mp.parse(src, metatags=metatags)
+                src.entity = entity
+                src.tags = tags
+                yield src
+
+        s = scanner.Scanner(
+            logger=self.logger,
+            providers=self.get_providers())
+
+        sources_and_metas = s.scan(query)
+
+        return list(_post_process(sources_and_metas))
+
+    def filter(self, results, query):
+        filters = self.get_filters()
+        if not filters:
+            msg = "No filters available"
+            self.logger.error(msg)
+            return []
+
+        fe = filterengine.Engine(
+            filters=filters,
+            logger=self.logger.getChild('filter-engine'))
+
+        res = fe.filter(results, query)
+        return res
+
+    @contextlib.contextmanager
+    def get_async_http_client(self):
+        yield ArroyoAsyncHTTPClient()
 
     def main(self):
         print('arroyo is up and running')
+
+
+class ArroyoAsyncHTTPClient(httpclient.AsyncHTTPClient):
+    def __init__(self, *args, logger=None, enable_cache=False,
+                 cache_delta=-1, timeout=20, **kwargs):
+
+        logger = logger or Null
+
+        self._timeout = timeout
+
+        if enable_cache:
+            fetcher_cache = cache.Disk(
+                basedir=utils.user_path(utils.UserPathType.CACHE, 'network',
+                                        create=True, is_folder=True),
+                delta=cache_delta)
+
+            if logger:
+                msg = "{clsname} using cachepath '{path}'"
+                msg = msg.format(clsname=self.__class__.__name__,
+                                 path=fetcher_cache.basedir)
+                logger.debug(msg)
+        else:
+            fetcher_cache = None
+
+        super().__init__(*args, **kwargs, cache=fetcher_cache)
+
+    @asyncio.coroutine
+    def fetch_full(self, *args, **kwargs):
+        kwargs['timeout'] = self._timeout
+        resp, content = yield from super().fetch_full(*args, **kwargs)
+        return resp, content
