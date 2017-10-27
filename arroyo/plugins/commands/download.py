@@ -37,6 +37,9 @@
 # models = pluginlib.models
 
 
+import pprint
+
+
 import appkit
 from arroyo import kit
 
@@ -69,15 +72,16 @@ class DownloadConsoleCommand(kit.CommandExtension):
 
     def main(self, filters=None, keywords=None, from_config=True):
         if filters:
-            q = kit.Query(**filters)
+            query = kit.Query(**filters)
         elif keywords:
-            q = kit.Query(' '.join(keywords))
+            query = kit.Query(' '.join(keywords))
         elif from_config:
             raise NotImplemented()
         else:
             raise NotImplemented()
 
-        return self.shell.search(q)
+        res = self.shell.search(query)
+        pprint.pprint(self.shell.filter(res, query))
 
 
 __arroyo_extensions__ = [
