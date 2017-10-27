@@ -30,7 +30,7 @@ from appkit import utils
 from arroyo import kit
 
 
-class Eztv(kit.ProviderExtension):
+class Eztv(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
     __extension_name__ = 'eztv'
 
     _BASE_DOMAIN = 'https://eztv.ag'
@@ -75,12 +75,12 @@ class Eztv(kit.ProviderExtension):
 
     def get_query_uri(self, query):
         # eztv only has series
-        if query.get('type', None) != 'episode':
+        if query.type != 'episode':
             return
 
         try:
-            series = query['series']
-        except KeyError:
+            series = query.series
+        except AttributeError:
             return
 
         q = series.strip().replace(' ', '-')
@@ -89,12 +89,11 @@ class Eztv(kit.ProviderExtension):
             base=self._BASE_DOMAIN,
             q=parse.quote_plus(q))
 
-    def parse(self, buff):
+    def parse_soup(self, soup):
         """
         Finds referentes to sources in buffer.
         Returns a list with source infos
         """
-        soup = self.parse_buffer(buff)
         rows = soup.select('tr')
         rows = [x for x in rows
                 if self.pseudocount_magnet_links(x) == Eztv.Count.ONE]
@@ -152,20 +151,21 @@ class Eztv(kit.ProviderExtension):
         return (name, magnet.attrs['href'])
 
     def parse_size(self, node):
-        s = str(node)
+        raise ValueError()
 
-        m = re.search(
-            r'(\d+(\.\d+)?\s+[TGMK]B)',
-            s,
-            re.IGNORECASE)
-        if not m:
-            raise ValueError('No size value found')
+        # s = str(node)
 
-        try:
-            return None
-            # return humanfriendly.parse_size(m.group(0))
-        except humanfriendly.InvalidSize as e:
-            raise ValueError('Invalid size') from e
+        # m = re.search(
+        #     r'(\d+(\.\d+)?\s+[TGMK]B)',
+        #     s,
+        #     re.IGNORECASE)
+        # if not m:
+        #     raise ValueError('No size value found')
+
+        # try:
+        #     return humanfriendly.parse_size(m.group(0))
+        # except humanfriendly.InvalidSize as e:
+        #     raise ValueError('Invalid size') from e
 
     def parse_created(cls, node):
         _table_mults = {
