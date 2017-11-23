@@ -212,6 +212,4 @@ class TorrentAPI(kit.ProviderExtension):
         return int(time.mktime(datetime.timetuple(dt)))
 
 
-__arroyo_extensions__ = [
-    TorrentAPI
-]
+__arroyo_extensions__ = (TorrentAPI,)

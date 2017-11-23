@@ -54,6 +54,7 @@ META_FIELD_TRANSLATIONS = [
     ('container', 'media.container'),
     ('country', 'media.country'),
     ('date', 'media.date'),
+    ('edition', 'media.edition'),
     ('episode_title', 'episode.title'),
     ('episode_count', 'episode.count'),
     ('episode_details', 'episode.details'),
@@ -72,12 +73,13 @@ META_FIELD_TRANSLATIONS = [
     ('website', 'release.website')
 ]
 
+
 # keep lower case!!
 KNOWN_DISTRIBUTORS = [
     'ethd',
     'eztv',
     'rartv',
-]  
+]
 
 
 class ParseError(Exception):

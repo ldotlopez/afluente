@@ -197,6 +197,33 @@ class Source(EntityPropertyMixin, sautils.Base):
 
         super().__init__(**kwargs)
 
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            raise TypeError(self.__class__, other.__class__)
+
+        return self.id.__eq__(other.id)
+
+    def __lt__(self, other):
+        if not isinstance(other, self.__class__):
+            raise TypeError()
+
+        return self.id.__lt__(other.id)
+
+    def __iter__(self):
+        yield from [
+            'age', 'created', 'entity', 'episode', 'episode_id', 'id',
+            'language', 'last_seen', 'leechers', 'movie', 'movie_id', 'name',
+            'provider', 'seeds', 'share_ratio', 'size', 'tags', 'type', 'type',
+            'uri', 'urn'
+        ]
+
+    def __str__(self):
+        return self.format(self.Formats.DEFAULT)
+
+    def __repr__(self):
+        msg = "<Source (id={sid}, name='{name}') object at 0x{id:x}>"
+        return msg.format(name=self.name, sid=self.id or '-', id=id(self))
+
     @property
     def tag_dict(self):
         return {x.key: x.value for x in self.tags.all()}
@@ -344,40 +371,6 @@ class Source(EntityPropertyMixin, sautils.Base):
 
         return fmt.format(**data)
 
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            raise TypeError(self.__class__, other.__class__)
-
-        return self.id.__eq__(other.id)
-
-    def __lt__(self, other):
-        if not isinstance(other, self.__class__):
-            raise TypeError()
-
-        return self.id.__lt__(other.id)
-
-    # FIXME: Delete this method
-    def __hash__(self):
-        return hash((self.id, self.urn, self.uri))
-
-    def __iter__(self):
-        yield from [
-            'age', 'created', 'entity', 'episode', 'episode_id', 'id',
-            'language', 'last_seen', 'leechers', 'movie', 'movie_id', 'name',
-            'provider', 'seeds', 'share_ratio', 'size', 'tags', 'type', 'type',
-            'uri', 'urn'
-        ]
-
-    def __str__(self):
-        return self.__unicode__()
-
-    def __repr__(self):
-        msg = "<Source (id={sid}, name='{name}') object at 0x{id:x}>"
-        return msg.format(name=self.name, sid=self.id or '-', id=id(self))
-
-    def __unicode__(self):
-        return self.format(self.Formats.DEFAULT)
-
 
 SourceTag = sautils.keyvaluemodel(
     'SourceTag',
@@ -390,6 +383,7 @@ SourceTag = sautils.keyvaluemodel(
                             ForeignKey('source.id', ondelete="cascade")),
         'source': orm.relationship("Source", back_populates="tags", uselist=False)
     }))
+
 
 class Selection(EntityPropertyMixin, sautils.Base):
     __tablename__ = 'selection'
@@ -474,16 +468,13 @@ class Episode(sautils.Base):
 
     @classmethod
     def normalize(cls, key, value):
-
-        # Nullables
-        if key == 'modifier' and value is None:
-            return None
-
-        # Normalization
         if key == 'series':
             value = value.lower()
             if not value:
                 raise ValueError(value)
+
+        elif key == 'modifier':
+            value = str(value) if value else ''
 
         elif key in ['season', 'number', 'modifier']:
             value = int(value)
@@ -491,7 +482,9 @@ class Episode(sautils.Base):
                 raise ValueError(value)
 
         else:
-            ValueError(repr(key) + '=' + repr(value))
+            msg = "{key!r}={value!r}"
+            msg = msg.format(key=key, value=value)
+            ValueError(msg)
 
         return value
 
@@ -516,8 +509,12 @@ class Episode(sautils.Base):
         d['series_with_mod'] = series_with_mod.format(**d)
         d.update(**extra_data)
 
-        return fmt.format(**d)
+        try:
+            return fmt.format(**d)
+        except TypeError:
+            pass
 
+        print()
     def __iter__(self):
         yield from ['id', 'series', 'modifier', 'season', 'number']
 
@@ -551,23 +548,18 @@ class Movie(sautils.Base):
 
     @classmethod
     def normalize(cls, key, value):
-        # Nullables
-        if key == 'modifier' and value is None:
-            return None
-
-        # Real normalization
         if key == 'title':
             value = value.lower()
             if not value:
                 raise ValueError(value)
 
         elif key == 'modifier':
-            value = int(value)
-            if value < 0:
-                raise ValueError(value)
+            value = str(value) if value else ''
 
         else:
-            ValueError(repr(key) + '=' + repr(value))
+            msg = "{key!r}={value!r}"
+            msg = msg.format(key=key, value=value)
+            ValueError(msg)
 
         return value
 

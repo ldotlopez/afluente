@@ -20,6 +20,8 @@
 
 import asyncio
 import contextlib
+import itertools
+import functools
 
 
 from appkit import (
@@ -39,6 +41,18 @@ from arroyo.helpers import (
     mediaparser,
     scanner
 )
+
+
+def unroll(fn):
+    @functools.wraps(fn)
+    def _wrapper(*args, **kwargs):
+        ret = []
+        for x in fn(*args, **kwargs):
+            ret.append(x)
+
+        return ret
+
+    return _wrapper
 
 
 class Arroyo(kit.Application):
@@ -151,6 +165,42 @@ class Arroyo(kit.Application):
 
         res = fe.filter(results, query)
         return res
+
+    def group(self, results):
+        groups = {
+            None: [],
+            kit.Episode: [],
+            kit.Movie: []
+        }
+
+        for res in results:
+            e = res.entity
+            if e is not None:
+                e = e.__class__
+
+            groups[e].append(res)
+
+        in_order = (
+            sorted(
+                groups[None],
+                key=lambda x: x.name) +
+            sorted(
+                groups[kit.Episode],
+                key=lambda x: (
+                    x.entity.series,
+                    x.entity.modifier or '',
+                    x.entity.season or -1,
+                    x.entity.number or -1)) +
+            sorted(
+                groups[kit.Movie],
+                key=lambda x: (
+                    x.entity.title,
+                    x.entity.modifier or ''))
+        )
+
+        return itertools.groupby(
+            in_order,
+            key=lambda x: x.entity if x.entity else None)
 
     @contextlib.contextmanager
     def get_async_http_client(self):

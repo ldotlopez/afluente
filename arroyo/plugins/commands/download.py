@@ -81,7 +81,15 @@ class DownloadConsoleCommand(kit.CommandExtension):
             raise NotImplemented()
 
         res = self.shell.search(query)
-        pprint.pprint(self.shell.filter(res, query))
+        res = self.shell.filter(res, query)
+        res = self.shell.group(res)
+
+        for (leader, group) in res:
+            print(leader or 'None')
+            print('----')
+            for x in group:
+                print("   {0!r}".format(x))
+            print()
 
 
 __arroyo_extensions__ = [
