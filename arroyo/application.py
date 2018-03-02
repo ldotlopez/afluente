@@ -137,9 +137,18 @@ class Arroyo(kit.Application):
 
     def search(self, query):
         def _post_process(items):
+            reg = {}
             mp = mediaparser.MediaParser(logger=self.logger.getChild('mediaparser'))
             for src, metatags in items:
-                entity, tags = mp.parse(src, metatags=metatags)
+                try:
+                    entity, tags = mp.parse(src, metatags=metatags)
+                except (mediaparser.InvalidEntityTypeError,
+                        mediaparser.InvalidEntityArgumentsError) as e:
+                    err = "Unable to parse '{name}': {e}".format(
+                        name=src.name, e=e)
+                    self.logger.error(err)
+                    continue
+
                 src.entity = entity
                 src.tags = tags
                 yield src

@@ -18,6 +18,7 @@
 # USA.
 
 
+import abc
 import functools
 import re
 import sys
@@ -122,6 +123,10 @@ class EntityPropertyMixin:
         for (model, attr) in m.items():
             value = entity if isinstance(entity, model) else None
             setattr(self, attr, value)
+
+    @abc.abstractmethod
+    def __eq__(self, other):
+        raise NotImplementedError()
 
 
 class Source(EntityPropertyMixin, sautils.Base):
@@ -466,6 +471,25 @@ class Episode(sautils.Base):
     class Formats:
         DEFAULT = '{series_with_mod} s{season:02d} e{number:02d}'
 
+    def __init__(self, *args, **kwargs):
+        req = ['series', 'season', 'number']
+        check = all([
+            attr in kwargs
+            for attr in req
+        ])
+        if not check:
+            err = (
+                "Insufficient arguments. "
+                "Required: {req}, got: {got}"
+            )
+            err = err.format(
+                req=', '.join(req),
+                got=', '.join(kwargs.keys())
+            )
+            raise TypeError(err)
+
+        super().__init__(*args, **kwargs)
+
     @classmethod
     def normalize(cls, key, value):
         if key == 'series':
@@ -502,7 +526,7 @@ class Episode(sautils.Base):
         d = self.asdict()
 
         if self.modifier:
-            series_with_mod = "{series} ({mod})"
+            series_with_mod = "{series} ({modifier})"
         else:
             series_with_mod = "{series}"
 
@@ -514,7 +538,12 @@ class Episode(sautils.Base):
         except TypeError:
             pass
 
-        print()
+    def __eq__(self, other):
+        return all([
+            getattr(self, attr) == getattr(other, attr)
+            for attr in ['series', 'modifier', 'season', 'number']
+        ])
+
     def __iter__(self):
         yield from ['id', 'series', 'modifier', 'season', 'number']
 
@@ -599,9 +628,3 @@ class Movie(sautils.Base):
 
     def __unicode__(self):
         return self.format()
-
-
-
-
-
-

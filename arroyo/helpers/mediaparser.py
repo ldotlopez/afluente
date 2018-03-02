@@ -21,6 +21,7 @@
 from urllib import parse
 
 
+import babelfish
 import guessit
 from appkit.blocks import cache
 from appkit import utils, Null
@@ -82,11 +83,11 @@ KNOWN_DISTRIBUTORS = [
 ]
 
 
-class ParseError(Exception):
+class InvalidEntityTypeError(Exception):
     pass
 
 
-class InvalidEntityError(Exception):
+class InvalidEntityArgumentsError(Exception):
     pass
 
 
@@ -111,6 +112,28 @@ def transfer_items(input, output, translations):
 
 
 class MediaParser:
+    """
+    This parser is a complex piece of code. I had to re-read it so many times
+    to understand my own code.
+    So...
+
+    The main function is `MediaParse.parse` whichs takes a `Source` object and
+    some metatags (a simple str->str dict). Note: maybe extrainfo will be a better name for metatags)
+
+    If source.type is 'other' our work is done, it's kinda a stopper.
+
+    For convenience I break parsing into some 'backends' based on source.type.
+    Those backends take the same params as `MediaParse.parse` and should
+    return:
+    - An Entity
+    - A dict with recognized metatags
+    - A dict with unrecognized metatags
+
+    Backend examples:
+    - _guessit_parse for episodes and movies using guessit
+    - _ebook_parse for ebooks
+    """
+
     def __init__(self, logger=None):
         # app.signals.connect('sources-added-batch', self._on_source_batch)
         # app.signals.connect('sources-updated-batch', self._on_source_batch)
@@ -142,29 +165,45 @@ class MediaParser:
         return entity, meta
 
     def _ebook_parse(self, source, metatags):
+        """
+        """
         try:
             return (
+                # Entity. TODO
                 None,
+
+                # metatags, we need both
                 {
-                    'author': metatags['ebook.author'],
-                    'title': metatags['ebook.title'],
+                    'author': metatags.pop('ebook.author'),
+                    'title': metatags.pop('ebook.title'),
                 },
-                {})
+                metatags  # other
+            )
         except KeyError:
-            return None, {}, {}
+            return None, {}, metatags
 
     def _guessit_parse(self, source, metatags):
+        """
+        guessit backend for episodes and movies
+
+        This method extracts information from source using guessit but before
+        converting it into models it needs to be cleaned and transformed.
+        This is a bunch of hacks or fixes, yes.
+
+        Once guessit info is ready we use another function to convert that
+        information into usable models.
+        """
+
+        # Step 1:
         # Release teams ofter are shadowed by 'distributors' (eztv, rartv,
         # etc...) because guessit doesn't do a perfect job.
         # In order to fix this we made a "preprocessing" to extract (and
         # remove) known distributors from source's name and add distribution
         # field into info after processing source's name with guessit.
-
         name = source.name
         type = source.type
 
         distributors = set()
-
         for dist in KNOWN_DISTRIBUTORS:
             tag = '[' + dist + ']'
             idx = name.lower().find(tag)
@@ -174,17 +213,22 @@ class MediaParser:
             name = (name[:idx] + name[idx+len(tag):]).strip()
             distributors.add(dist)
 
+        # Step 2:
+        # Parse name with guessit using its type as a type hint
         info = guessit.guessit(name, options={'type': type})
 
-        # Save distributors into info
+        # Step 3:
+        # Re-introduce distributors from step 1
         if distributors:
             info['release_distributors'] = list(distributors)
 
-        # Cleanup info
+        # Step 4:
+        # Remove empty values
         info = {k: v for (k, v) in info.items() if v is not None}
 
-        # FIXME: Don't drop, save
+        # Step 5:
         # Drop multiple languages and multiple episode numbers
+        # FIXME: Don't drop, save
         for k in ['language', 'part']:
             if isinstance(info.get(k), list):
                 msg = 'Drop multiple instances of {key} in {source}'
@@ -192,7 +236,8 @@ class MediaParser:
                 self.logger.warning(msg)
                 info[k] = info[k][0]
 
-        # Integrate part as episode in season 0
+        # Step 6a:
+        # Integrate 'part' as episode in season 0
         if 'part' in info:
             if info.get('type') == 'movie':
                 msg = "Movie '{source}' has 'part'"
@@ -218,6 +263,12 @@ class MediaParser:
                 )
                 self.logger.warning(msg)
 
+        # Step 6b:
+        # Integrade N-of-N episodes
+        if 'episode_count' in info:
+            info['season'] = info.get('season', 1)
+
+        # Step 7:
         # Reformat date as episode number for episodes if needed
         if info.get('type', None) == 'episode' and \
            'date' in info:
@@ -233,6 +284,7 @@ class MediaParser:
                     month=info['date'].month,
                     day=info['date'].day)
 
+        # Step 8:
         # Reformat language as 3let-2let code
         # Note that info also contains a country property but doesn't
         # satisfy our needs: info's country refers to the country where the
@@ -247,19 +299,20 @@ class MediaParser:
 
         if 'language' in info:
             try:
+                if info['language'] == 'und':
+                    raise babelfish.exceptions.LanguageConvertError('Undefined language')
+
                 info['language'] = '{}-{}'.format(
                     info['language'].alpha3,
                     info['language'].alpha2)
-            except babelfish.exceptions.LanguageConvertError as e:
+
+            except (babelfish.exceptions.LanguageConvertError) as e:
                 msg = "Language error in '{source}': {msg}"
-                msg = msg.format(source=data['name'], msg=e)
+                msg = msg.format(source=source.name, msg=e)
                 self.logger.warning(msg)
                 del info['language']
 
-        # else:
-        #     info['language'] = self.default_language_from_provider(
-        #         data.provider)
-
+        # Step 9:
         # Misc fixes. Maybe this needs its own module
         # - 12 Monkeys series
         if (info.get('type', None) == 'episode' and
@@ -267,18 +320,35 @@ class MediaParser:
                 data['name'].lower().startswith('12 monkeys')):
             info['series'] = '12 Monkeys'
 
-        entity, tags, other = self._guessit_transform_data(info)
-
-        return entity, tags, other
+        # After all this fixes info is ready to be transformed into modelable
+        # data
+        return self._guessit_transform_data(info)
 
     def _guessit_transform_data(self, guess_data):
-        # Force limits with some introspection
-        type = guess_data.pop('type')
+        """
+        Transform guessit data into models
+        """
+
+        # Extract type from data and convert it into a class name, extract
+        # that name from kit to the the model class
+        type = guess_data.pop('type', '')
         entity_cls_name = ''.join(x.capitalize()
                                   for x in type.split('_'))
-        entity_cls = getattr(kit, entity_cls_name)
-        entity_params = {}
 
+        if not entity_cls_name:
+            err = "Detected entity type is empty"
+            raise InvalidEntityTypeError(err)
+
+        try:
+            entity_cls = getattr(kit, entity_cls_name)
+        except AttributeError as e:
+            err = "Detected entity type '{entity_cls_name}' is invalid"
+            err = err.format(entity_cls_name=entity_cls_name)
+            raise InvalidEntityTypeError(err) from e
+
+        # Extract entity parameters using the definitions from the top of
+        # this module
+        entity_params = {}
         transfer_items(guess_data, entity_params,
                        ENTITY_FIELD_TRANSLATIONS[type])
 
@@ -286,9 +356,10 @@ class MediaParser:
             entity = entity_cls(**entity_params)
         except (TypeError, ValueError) as e:
             entity = None
-            msg = 'Invalid parameters for entity: {params}'
-            msg = msg.format(params=repr(entity_params))
-            self.logger.warning(msg)
+            err = "Invalid parameters for entity '{entity_cls_name}': {params}"
+            err = err.format(entity_cls_name=entity_cls_name,
+                             params=repr(entity_params))
+            raise InvalidEntityArgumentsError(err) from e
 
         # Process meta
         tags = {}

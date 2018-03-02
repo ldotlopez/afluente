@@ -119,7 +119,7 @@ class Scanner:
         # ret = list(_scan(origins_data))
         ret = [
             (kit.Source(**x), None)
-             for x in origins_data
+            for x in origins_data
         ]
 
         self.cache.set(query, ret)
