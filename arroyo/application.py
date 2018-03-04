@@ -65,6 +65,8 @@ class Arroyo(kit.Application):
         'commands.settings',
 
         'filters.sourcefields',
+        'filters.episodefields',
+        'filters.moviefields',
 
         'providers.epublibre',
         'providers.eztv',
@@ -137,15 +139,17 @@ class Arroyo(kit.Application):
 
     def search(self, query):
         def _post_process(items):
-            reg = {}
-            mp = mediaparser.MediaParser(logger=self.logger.getChild('mediaparser'))
+            mp = mediaparser.MediaParser(
+                logger=self.logger.getChild('mediaparser'))
+
             for src, metatags in items:
                 try:
                     entity, tags = mp.parse(src, metatags=metatags)
+
                 except (mediaparser.InvalidEntityTypeError,
                         mediaparser.InvalidEntityArgumentsError) as e:
-                    err = "Unable to parse '{name}': {e}".format(
-                        name=src.name, e=e)
+                    err = "Unable to parse '{name}': {e}"
+                    err = err.format(name=src.name, e=e)
                     self.logger.error(err)
                     continue
 
@@ -169,7 +173,7 @@ class Arroyo(kit.Application):
             return []
 
         fe = filterengine.Engine(
-            filters=filters,
+            filters=dict(filters).values(),
             logger=self.logger.getChild('filter-engine'))
 
         res = fe.filter(results, query)

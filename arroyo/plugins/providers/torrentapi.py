@@ -42,7 +42,6 @@
 #  'title': 'Westworld.S01E10.iNTERNAL.HDTV.x264-TURBO[rartv]'}
 
 
-
 import asyncio
 import json
 import time
@@ -149,8 +148,11 @@ class TorrentAPI(kit.ProviderExtension):
         return ret
 
     def get_query_uri(self, query):
-        querystr = str(query)
-        if not querystr:
+        try:
+            querystr = str(query)
+        except kit.QueryConversionError:
+            err = "Unable to convert query into a string"
+            self.logger.error(err)
             return None
 
         qs = dict(search_string=querystr)
@@ -190,10 +192,10 @@ class TorrentAPI(kit.ProviderExtension):
     def parse_created(self, created):
         """
         created: '2017-09-06 14:50:59 +0000'
-        
+
         From API docs:
         > All api times are returned in UTC.
-        
+
         Good boy torrentapi, good boy.
         """
         if not created:

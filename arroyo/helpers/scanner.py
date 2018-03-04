@@ -134,7 +134,7 @@ class Scanner:
         Returned origins are configured with one iteration.
         """
 
-        msg = "Discovering origins for {query}"
+        msg = "Discovering origins for {query!r}"
         msg = msg.format(query=query)
         self.logger.info(msg)
 
@@ -149,9 +149,9 @@ class Scanner:
                 exts_and_uris.append((ext, uri))
 
         if not exts_and_uris:
-            msg = "No compatible origins found for {query}"
+            msg = "No compatible origins found for {query!r}"
             msg = msg.format(query=query)
-            self.logger.warning(msg)
+            self.logger.error(msg)
             return []
 
         origins = [Origin(p, uri=uri) for (p, uri) in exts_and_uris]

@@ -606,7 +606,7 @@ class Movie(sautils.Base):
         d = self.asdict()
 
         if self.modifier:
-            title_with_mod = "{title} ({mod})"
+            title_with_mod = "{title} ({modifier})"
         else:
             title_with_mod = "{title}"
 
@@ -628,3 +628,9 @@ class Movie(sautils.Base):
 
     def __unicode__(self):
         return self.format()
+
+    def __eq__(self, other):
+        return (
+            self.title == other.title and
+            self.modifier == other.modifier
+        )

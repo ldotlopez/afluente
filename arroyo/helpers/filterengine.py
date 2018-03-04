@@ -29,32 +29,48 @@ class MissingFilterError(Exception):
 
 
 class ConflictingFilterError(Exception):
-    pass
+    def __init__(self, collisions, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.collisions = collisions
 
 
 class Engine:
     __slots__ = (
-        'filters',
         'logger',
-        'registry')
+        'registry'
+    )
 
     def __init__(self, filters=None, logger=None):
-        if filters is None:
-            raise TypeError(filters)
-
-        self.registry = Registry()
+        self.registry = {}
         self.logger = logger or Null
 
-        for (name, f) in filters:
-            try:
-                self.registry.add(f)
-            except ConflictingFilterError as e:
-                msg = "Filter {f} has conflicting handles: {collisions}"
-                msg = msg.format(f=name, collisions=', '.join(e.args[1]))
-                self.logger.warning(msg)
+        for filter in filters or []:
+            self.register(filter)
+
+    def register(self, filter):
+        s1 = set(filter.HANDLES)
+        s2 = set(self.registry.keys())
+        collisions = tuple(s2.intersection(s1))
+
+        if collisions:
+            raise ConflictingFilterError(collisions)
+
+        self.registry.update({
+            handle: filter for handle in filter.HANDLES
+        })
+
+        # msg = "Filter {f} has conflicting handles: {collisions}"
+        # msg = msg.format(f=name, collisions=', '.join(e.args[1]))
+        # self.logger.warning(msg)
+        # raise
 
     def filter(self, results, query):
-        filters, missing = self.matching_filters(query)
+        filters, missing = self.get_for_query(query)
+
+        if not filters:
+            err = "No matching filters"
+            self.logger.error(err)
+            return []
 
         for key in missing:
             msg = "Missing filter for key '{key}'"
@@ -62,12 +78,17 @@ class Engine:
             self.logger.warning(msg)
 
         results = list(results)
-        for (name, fn) in filters:
+        for (handler, filter) in filters:
+            fn = functools.partial(filter.apply,
+                                   handler,
+                                   getattr(query, handler))
+
             prev = len(results)
             results = list(fn(results))
             curr = len(results)
+
             msg = "Applied {name} over {prev} items: {curr} results"
-            msg = msg.format(name=name, prev=prev, curr=curr)
+            msg = msg.format(name=handler, prev=prev, curr=curr)
             self.logger.debug(msg)
 
         if not isinstance(results, list):
@@ -75,39 +96,21 @@ class Engine:
 
         return results
 
-    def matching_filters(self, query):
+    def get_for_handler(self, handler):
+        try:
+            return self.registry[handler]
+        except KeyError as e:
+            raise MissingFilterError() from e
+
+    def get_for_query(self, query):
         matches = []
         missing = []
 
         for (key, value) in query.asdict().items():
             try:
-                ext = self.registry.get(key)
-                fn = functools.partial(ext.apply, key, value)
-                matches.append((key, fn))
+                filter = self.get_for_handler(key)
+                matches.append((key, filter))
             except MissingFilterError:
                 missing.append(key)
 
         return matches, missing
-
-
-class Registry:
-    def __init__(self):
-        self._reg = {}
-
-    def add(self, f):
-        s1 = set(f.HANDLES)
-        s2 = set(self._reg.keys())
-        collisions = tuple(s2.intersection(s1))
-
-        if collisions:
-            raise ConflictingFilterError(f, collisions)
-
-        self._reg.update({
-            handle: f for handle in f.HANDLES
-        })
-
-    def get(self, key):
-        try:
-            return self._reg[key]
-        except KeyError as e:
-            raise MissingFilterError(key) from e

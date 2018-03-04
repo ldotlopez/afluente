@@ -81,7 +81,15 @@ class DownloadConsoleCommand(kit.CommandExtension):
             raise NotImplemented()
 
         res = self.shell.search(query)
+        if not res:
+            err = "No results found"
+            self.shell.logger.error(err)
+            return
+
         res = self.shell.filter(res, query)
+        if not res:
+            return
+
         res = self.shell.group(res)
 
         for (leader, group) in res:

@@ -63,7 +63,7 @@ class FilterExtension(Extension):
 
     @abc.abstractmethod
     def filter(self, key, value, item):
-        pass
+        raise NotImplementedError()
 
     def apply(self, key, value, iterable):
         return filter(
@@ -173,10 +173,6 @@ class Query:
             keywords = str(args[0])
             raise NotImplementedError("keywords='{}'".format(keywords))
 
-        if not params:
-            msg = "not enoght info for a Query"
-            raise ValueError(msg)
-
         if 'type' not in params:
             params['type'] = type
 
@@ -204,11 +200,7 @@ class Query:
         return attr, value
 
     def __str__(self):
-        qdict = self.asdict()
-
         def _get_base_string(attr='name'):
-            ret = None
-
             try:
                 return getattr(self, attr).strip()
             except AttributeError:
@@ -219,7 +211,7 @@ class Query:
             except AttributeError:
                 pass
 
-            return None
+            raise QueryConversionError(self.asdict())
 
         def _source_base_string():
             return _get_base_string('name')
@@ -230,29 +222,44 @@ class Query:
                 return _source_base_string()
 
             try:
-                ret += ' {}'.format(self.modifier)
+                ret += " {}".format(self.series_year)
             except AttributeError:
                 pass
 
             try:
-                ret += ' S{:02d}'.format(self.season)
+                ret += " S" + self.season.zfill(2)
             except AttributeError:
-                return ret
+                pass
 
             try:
-                ret += ' E{:02d}'.format(self.number)
+                ret += " E" + self.number.zfill(2)
             except AttributeError:
-                return ret
+                pass
+
+            return ret
+
+        def _movie_base_string():
+            ret = _get_base_string('title')
+            try:
+                ret += " ({})".format(self.movie_year)
+            except AttributeError:
+                pass
+
+            return ret
 
         handlers = {
+            'episode': _episode_base_string,
+            'movie': _movie_base_string,
             'source': _source_base_string,
-            'episode': _episode_base_string
         }
 
         try:
             return handlers[self.type]()
-        except KeyError:
-            return None
+
+        except KeyError as e:
+            err = "base_string for {type} not implmented"
+            err = err.format(type=self.type)
+            raise NotImplementedError(err)
 
     def asdict(self):
         return {
@@ -281,6 +288,10 @@ class Query:
             items=items,
             id=id(self)
         )
+
+
+class QueryConversionError(Exception):
+    pass
 
 
 class ConsoleApplicationMixin(console.ConsoleApplicationMixin):
