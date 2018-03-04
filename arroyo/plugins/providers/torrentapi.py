@@ -89,6 +89,7 @@ class TorrentAPI(kit.ProviderExtension):
     @asyncio.coroutine
     def fetch(self, uri):
         yield from self.refresh_token()
+
         uri = urilib.alter_query_params(
             uri,
             dict(

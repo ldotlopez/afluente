@@ -165,9 +165,6 @@ class Scanner:
                 try:
                     data['provider'] = provider_name
                     yield data
-                    # yield coretypes.Source(
-                    #     provider=provider_name,
-                    #     **data)
 
                 except ValueError as e:
                     msg = "Error from {provider}: {e}"

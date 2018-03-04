@@ -27,10 +27,10 @@ from appkit import application
 from appkit.application import console
 from appkit.blocks import extensionmanager
 from arroyo.dbmodels import (
-    Source,
-    SourceTag,
     Episode,
-    Movie
+    Movie,
+    Source,
+    SourceTag
 )
 
 # Short-hands
@@ -229,10 +229,10 @@ class Query:
             try:
                 ret += " S" + self.season.zfill(2)
             except AttributeError:
-                pass
+                return ret
 
             try:
-                ret += " E" + self.number.zfill(2)
+                ret += "E" + self.number.zfill(2)
             except AttributeError:
                 pass
 

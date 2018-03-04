@@ -174,7 +174,7 @@ class Arroyo(kit.Application):
 
         fe = filterengine.Engine(
             filters=dict(filters).values(),
-            logger=self.logger.getChild('filter-engine'))
+            logger=self.logger)
 
         res = fe.filter(results, query)
         return res
