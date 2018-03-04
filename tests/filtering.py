@@ -1,14 +1,12 @@
 import unittest
 
 
-from testutils import mock_source
+from testutils import mock_source, analyze
 
 
 from arroyo import kit
-from arroyo.helpers import (
-    filterengine,
-    mediaparser
-)
+from arroyo.helpers import filterengine
+from arroyo.plugins.filters.tags import TagFilters
 
 
 class DumbFilterMixin(kit.FilterExtension):
@@ -104,13 +102,6 @@ class FilterEngineTest(unittest.TestCase):
         self.assertEqual(missing, ['missing'])
 
     def test_basic_filtering(self):
-        def analyze(src):
-            mp = mediaparser.MediaParser()
-            entity, tags = mp.parse(src)
-            src.entity = entity
-            src.tags = tags
-            return src
-
         results = [
             analyze(mock_source('Series A - 1x01')),
             analyze(mock_source('Series B - 3x03'))
@@ -118,10 +109,42 @@ class FilterEngineTest(unittest.TestCase):
         query = kit.Query(type='x')
 
         fe = filterengine.Engine(filters=[TypeFilter(None)])
-        import ipdb; ipdb.set_trace(); pass
+
         results = fe.filter(results, query)
 
         print(results)
+
+
+class TestQualityFilter(unittest.TestCase):
+    def assertResults(self, filter_class, key, value, names, expected_indexes):
+        srcs = [analyze(mock_source(x)) for x in names]
+
+        f = filter_class(None)
+        res = f.apply(key, value, srcs)
+        self.assertEqual(
+            list(res),
+            [x for (idx, x) in enumerate(srcs) if idx in expected_indexes])
+
+    def test_480p(self):
+        self.assertResults(
+            TagFilters, 'quality', '480p',
+            ['Greys.Anatomy.S14E11.HDTV.x264-KILLERS[rartv]',
+             'Greys.Anatomy.S14E11.720p.x264-KILLERS[rartv]'],
+            [0])
+
+    def test_720p(self):
+        self.assertResults(
+            TagFilters, 'quality', '720p',
+            ['Greys.Anatomy.S14E11.1080p.x264-KILLERS[rartv]',
+             'Greys.Anatomy.S14E11.720p.x264-KILLERS[rartv]'],
+            [1])
+
+    def test_hdtv_format(self):
+        self.assertResults(
+            TagFilters, 'format', 'webrip',
+            ['Counterpart.S01E07.WEBRip.x264-ION10 ',
+             'The.Good.Fight.S01E10.1080p.WEB-DL.DD5.1.H264-ViSUM[rartv]'],
+            [0])
 
 
 if __name__ == '__main__':

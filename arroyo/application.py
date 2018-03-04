@@ -64,9 +64,10 @@ class Arroyo(kit.Application):
         'commands.download',
         'commands.settings',
 
-        'filters.sourcefields',
-        'filters.episodefields',
-        'filters.moviefields',
+        'filters.episode',
+        'filters.movie',
+        'filters.source',
+        'filters.tags',
 
         'providers.epublibre',
         'providers.eztv',
@@ -154,7 +155,7 @@ class Arroyo(kit.Application):
                     continue
 
                 src.entity = entity
-                src.tags = tags
+                src.tags = {tag.key: tag for tag in tags}
                 yield src
 
         s = scanner.Scanner(

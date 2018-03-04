@@ -18,7 +18,6 @@
 # USA.
 
 
-import abc
 import functools
 import re
 import sys
@@ -35,6 +34,7 @@ from sqlalchemy import (
     schema
 )
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm.collections import attribute_mapped_collection
 from appkit.db import sqlalchemyutils as sautils
 from appkit import utils
 
@@ -57,6 +57,7 @@ sautils.Base.metadata.naming_convention = {
 #   is Selection
 # Selection:
 #   is EntityPropertyMixin
+
 
 @functools.lru_cache(maxsize=8)
 def _ensure_model_class(x):
@@ -87,7 +88,8 @@ Variable = sautils.keyvaluemodel('Variable', sautils.Base, dict({
 
 
 class EntityPropertyMixin:
-    """Adds support for `entity` property
+    """
+    Adds support for `entity` property
     Useful for Source and Selection
 
     Classes using this mixin should define the class attribute ENTITY_MAP:
@@ -123,10 +125,6 @@ class EntityPropertyMixin:
         for (model, attr) in m.items():
             value = entity if isinstance(entity, model) else None
             setattr(self, attr, value)
-
-    @abc.abstractmethod
-    def __eq__(self, other):
-        raise NotImplementedError()
 
 
 class Source(EntityPropertyMixin, sautils.Base):
@@ -178,12 +176,14 @@ class Source(EntityPropertyMixin, sautils.Base):
                              uselist=False,
                              backref=orm.backref("sources", lazy='dynamic'))
 
-    # FIXME: change lazy to 'subquery' for simplicty or use dict-like
+    # Options: Use lazy to 'subquery' for simplicty or use dict-like
     # collections
+    collection_class = attribute_mapped_collection('key')
     tags = orm.relationship("SourceTag",
                             uselist=True,
                             back_populates="source",
-                            lazy='dynamic',
+                            lazy='subquery',
+                            collection_class=collection_class,
                             cascade="all, delete, delete-orphan")
 
     def __init__(self, **kwargs):
@@ -383,10 +383,15 @@ SourceTag = sautils.keyvaluemodel(
     dict({
         '__doc__': "Define custom data attached to a source.",
         '__tablename__': 'sourcetag',
-        '__table_args__': (schema.UniqueConstraint('source_id', 'key'),),
+        '__table_args__': (
+            schema.UniqueConstraint('source_id', 'key'),
+        ),
         'source_id': Column(Integer,
-                            ForeignKey('source.id', ondelete="cascade")),
-        'source': orm.relationship("Source", back_populates="tags", uselist=False)
+                            ForeignKey('source.id',
+                                       ondelete="cascade")),
+        'source': orm.relationship("Source",
+                                   back_populates="tags",
+                                   uselist=False)
     }))
 
 

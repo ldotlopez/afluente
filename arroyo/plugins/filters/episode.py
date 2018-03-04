@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (C) 2015 Luis López <luis@cuarentaydos.com>
+# Copyright (C) 2017 Luis López <luis@cuarentaydos.com>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -24,12 +24,15 @@ import functools
 from arroyo import kit
 
 
-class Filter(kit.FilterExtension):
-    __extension_name__ = 'movie'
+class EpisodeFieldFilters(kit.FilterExtension):
+    __extension_name__ = 'episode'
 
     HANDLES = (
-        'title',
-        'title-year'
+        'series',
+        'series_year',
+        'series_country',
+        'season',
+        'number'
     )
 
     def _exact_match(self, key, value, item):
@@ -40,11 +43,14 @@ class Filter(kit.FilterExtension):
             return False
 
     def apply(self, key, value, it):
-        if key == 'title-year':
-            key = 'modifier'
+        if key in ('series', 'season', 'number'):
+            if key in ('season', 'number'):
+                value = int(value)
 
-        if key in ('title', 'modifier'):
             fn = functools.partial(self._exact_match, key, value)
+
+        elif key in ('series-year', 'series-country'):
+            fn = functools.partial(self._exact_match, 'modifier', value)
 
         else:
             raise NotImplementedError(key)
@@ -52,6 +58,4 @@ class Filter(kit.FilterExtension):
         return filter(lambda x: fn(x), it)
 
 
-__arroyo_extensions__ = [
-    Filter
-]
+__arroyo_extensions__ = (EpisodeFieldFilters,)
