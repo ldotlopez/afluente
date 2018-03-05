@@ -81,10 +81,9 @@ def _ensure_model_class(x):
     return cls
 
 
-Variable = sautils.keyvaluemodel('Variable', sautils.Base, dict({
-    '__doc__': "Define variables.",
-    '__table_args__': (schema.UniqueConstraint('key'),)
-    }))
+class Variable(sautils.KeyValueItem, sautils.Base):
+    __tablename__ = 'variable'
+    __table_args__ = schema.UniqueConstraint('key'),
 
 
 class EntityPropertyMixin:
@@ -382,25 +381,7 @@ class Source(EntityPropertyMixin, sautils.Base):
 #     target.tags_map = {tag.key: tag.value for tag in target.tags}
 
 
-# SourceTag = sautils.keyvaluemodel(
-#     'SourceTag',
-#     sautils.Base,
-#     dict({
-#         '__doc__': "Define custom data attached to a source.",
-#         '__tablename__': 'sourcetag',
-#         '__table_args__': (
-#             schema.UniqueConstraint('source_id', 'key'),
-#         ),
-#         'source_id': Column(Integer,
-#                             ForeignKey('source.id',
-#                                        ondelete="cascade")),
-#         'source': orm.relationship("Source",
-#                                    back_populates="tags",
-#                                    uselist=False)
-#     }))
-
-
-class SourceTag(sautils._KeyValueItem, sautils.Base):
+class SourceTag(sautils.KeyValueItem, sautils.Base):
     __tablename__ = 'sourcetag'
     __table_args__ = (
         schema.UniqueConstraint('source_id', 'key'),
