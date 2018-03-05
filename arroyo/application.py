@@ -184,11 +184,11 @@ class Arroyo(kit.Application):
                     continue
 
                 src.entity = entity
-                src.tags = {tag.key: tag for tag in tags}
+                src.tags = tags
                 yield src
 
         try:
-            sources_and_metas = self.caches[Caches.SCAN].get(query)
+            results = self.caches[Caches.SCAN].get(query)
             msg = "Scan data found in cache"
             self.logger.debug(msg)
 
@@ -199,13 +199,12 @@ class Arroyo(kit.Application):
             s = scanner.Scanner(logger=self.logger,
                                 providers=self.get_providers())
             sources_and_metas = s.scan(query)
+            results = list(_post_process(sources_and_metas))
 
-            self.caches[Caches.SCAN].set(query, sources_and_metas)
+            self.caches[Caches.SCAN].set(query, results)
 
         # Processed results can't be cached due a error
         # in serialization of tags
-        results = list(_post_process(sources_and_metas))
-
         return results
 
     def filter(self, results, query):

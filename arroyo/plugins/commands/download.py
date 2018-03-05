@@ -64,6 +64,11 @@ class DownloadConsoleCommand(kit.CommandExtension):
                   "file")),
 
         kit.Parameter(
+            'replay',
+            action='store_true',
+            help=("Show last search results")),
+
+        kit.Parameter(
             'filter',
             abbr='f',
             dest='filters',
@@ -79,8 +84,15 @@ class DownloadConsoleCommand(kit.CommandExtension):
             help='keywords')
     )
 
-    def main(self, filters=None, keywords=None, from_config=True):
-        if filters:
+    def main(self, replay=False, filters=None, keywords=None,
+             from_config=True):
+        if replay:
+            with SAV_FILE.open('rb') as fh:
+                results = pickle.load(fh)
+                self.display_results(results)
+            return
+
+        elif filters:
             query = kit.Query(**filters)
         elif keywords:
             query = kit.Query(' '.join(keywords))
@@ -105,8 +117,8 @@ class DownloadConsoleCommand(kit.CommandExtension):
                    for (leader, group)
                    in self.shell.group(results)]
 
-        # with SAV_FILE.open('wb+') as fh:
-        #     pickle.dump(results, fh)
+        with SAV_FILE.open('wb+') as fh:
+            pickle.dump(results, fh)
 
         self.display_results(results)
 

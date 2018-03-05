@@ -13,5 +13,5 @@ def analyze(src):
     mp = mediaparser.MediaParser()
     entity, tags = mp.parse(src)
     src.entity = entity
-    src.tags = {tag.key: tag for tag in tags}
+    src.tags = tags
     return src

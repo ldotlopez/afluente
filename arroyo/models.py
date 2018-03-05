@@ -29,12 +29,12 @@ from sqlalchemy import (
     String,
     ForeignKey,
     and_,
+    event,
     func,
     orm,
     schema
 )
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm.collections import attribute_mapped_collection
 from appkit.db import sqlalchemyutils as sautils
 from appkit import utils
 
@@ -177,13 +177,11 @@ class Source(EntityPropertyMixin, sautils.Base):
                              backref=orm.backref("sources", lazy='dynamic'))
 
     # Options: Use lazy to 'subquery' for simplicty or use dict-like
-    # collections
-    collection_class = attribute_mapped_collection('key')
+    # collections.attribute_mapped_collection
     tags = orm.relationship("SourceTag",
                             uselist=True,
                             back_populates="source",
                             lazy='subquery',
-                            collection_class=collection_class,
                             cascade="all, delete, delete-orphan")
 
     def __init__(self, **kwargs):
@@ -203,94 +201,24 @@ class Source(EntityPropertyMixin, sautils.Base):
         super().__init__(**kwargs)
 
     def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            raise TypeError(self.__class__, other.__class__)
-
-        return self.id.__eq__(other.id)
+        return _eq_from_attrs(self, ('uri',))
 
     def __lt__(self, other):
-        if not isinstance(other, self.__class__):
-            raise TypeError()
-
-        return self.id.__lt__(other.id)
-
-    def __iter__(self):
-        yield from (
-            'age',
-            'created',
-            'entity',
-            'episode',
-            'episode_id',
-            'id',
-            'language',
-            'last_seen',
-            'leechers',
-            'movie',
-            'movie_id',
-            'name',
-            'provider',
-            'seeds',
-            'share_ratio',
-            'size',
-            'tags',
-            'type',
-            'uri',
-            'urn'
-        )
-
-    def __str__(self):
-        return self.format(self.Formats.DEFAULT)
+        return _lt_from_attrs(self, ('name',))
 
     def __repr__(self):
         msg = "<Source (id={sid}, name='{name}') object at 0x{id:x}>"
         return msg.format(name=self.name, sid=self.id or '-', id=id(self))
 
-    @property
-    def tag_dict(self):
-        return {x.key: x.value for x in self.tags.all()}
+    def __str__(self):
+        return self.format(self.Formats.DEFAULT)
 
-    @hybrid_property
-    def _discriminator(self):
-        return self.urn or self.uri
-
-    @_discriminator.expression
-    def _discriminator(self):
-        return func.coalesce(self.urn, self.uri)
-
-    @hybrid_property
-    def age(self):
-        return utils.now_timestamp() - self.created
-
-    @hybrid_property
-    def needs_postprocessing(self):
-        return self.urn is None and self.uri is not None
-
-    @needs_postprocessing.expression
-    def needs_postprocessing(self):
-        return and_(self.urn.is_(None), ~self.uri.is_(None))
-
-    @hybrid_property
-    def share_ratio(self):
-        seeds = self.seeds if self.seeds is not None else 0
-        leechers = self.leechers if self.leechers is not None else 0
-
-        if not self.seeds and not self.leechers:
-            return None
-
-        if seeds and leechers == 0:
-            return float(sys.maxsize)
-
-        if seeds == 0 and leechers:
-            return 0.0
-
-        return seeds / leechers
-
-    @hybrid_property
-    def selected(self):
-        return (
-            self.entity and
-            self.entity.selection and
-            self.entity.selection.source == self)
+    @orm.validates('name', 'provider', 'urn', 'uri', 'language', 'type')
+    def validate(self, key, value):
+        """
+        Wrapper around static method normalize
+        """
+        return self.normalize(key, value)
 
     @staticmethod
     def normalize(key, value):
@@ -365,22 +293,76 @@ class Source(EntityPropertyMixin, sautils.Base):
             msg = msg.format(key=key, value=repr(value))
             raise ValueError(msg) from e
 
-    @orm.validates('name', 'provider', 'urn', 'uri', 'language', 'type')
-    def validate(self, key, value):
-        """
-        Wrapper around static method normalize
-        """
-        return self.normalize(key, value)
+    @property
+    def tags_map(self):
+        return {x.key: x.value for x in self.tags}
+
+    @hybrid_property
+    def _discriminator(self):
+        return self.urn or self.uri
+
+    @_discriminator.expression
+    def _discriminator(self):
+        return func.coalesce(self.urn, self.uri)
+
+    @hybrid_property
+    def age(self):
+        return utils.now_timestamp() - self.created
+
+    @hybrid_property
+    def needs_postprocessing(self):
+        return self.urn is None and self.uri is not None
+
+    @needs_postprocessing.expression
+    def needs_postprocessing(self):
+        return and_(self.urn.is_(None), ~self.uri.is_(None))
+
+    @hybrid_property
+    def share_ratio(self):
+        seeds = self.seeds if self.seeds is not None else 0
+        leechers = self.leechers if self.leechers is not None else 0
+
+        if not self.seeds and not self.leechers:
+            return None
+
+        if seeds and leechers == 0:
+            return float(sys.maxsize)
+
+        if seeds == 0 and leechers:
+            return 0.0
+
+        return seeds / leechers
+
+    @hybrid_property
+    def selected(self):
+        return (
+            self.entity and
+            self.entity.selection and
+            self.entity.selection.source == self)
 
     def asdict(self):
-        ret = {
-            attr: getattr(self, attr)
-            for attr in self
-            if attr != 'tags'
-        }
-        ret['tags'] = self.tag_dict
-
-        return ret
+        return _asdict_from_attrs(
+            self, (
+                'age',
+                'created',
+                'entity',
+                'episode',
+                'episode_id',
+                'id',
+                'language',
+                'last_seen',
+                'leechers',
+                'movie',
+                'movie_id',
+                'name',
+                'provider',
+                'seeds',
+                'share_ratio',
+                'size',
+                'tags',
+                'type',
+                'uri',
+                'urn'))
 
     def format(self, fmt=Formats.DEFAULT, extra_data={}):
         data = self.asdict()
@@ -393,22 +375,39 @@ class Source(EntityPropertyMixin, sautils.Base):
         return fmt.format(**data)
 
 
-SourceTag = sautils.keyvaluemodel(
-    'SourceTag',
-    sautils.Base,
-    dict({
-        '__doc__': "Define custom data attached to a source.",
-        '__tablename__': 'sourcetag',
-        '__table_args__': (
-            schema.UniqueConstraint('source_id', 'key'),
-        ),
-        'source_id': Column(Integer,
-                            ForeignKey('source.id',
-                                       ondelete="cascade")),
-        'source': orm.relationship("Source",
-                                   back_populates="tags",
-                                   uselist=False)
-    }))
+# @event.listens_for(Source.tags, 'dispose_collection')
+# @event.listens_for(Source.tags, 'init_collection')
+# @event.listens_for(Source.tags, 'remove')
+# def _source_tags_modifier_cb(target, *args):
+#     target.tags_map = {tag.key: tag.value for tag in target.tags}
+
+
+# SourceTag = sautils.keyvaluemodel(
+#     'SourceTag',
+#     sautils.Base,
+#     dict({
+#         '__doc__': "Define custom data attached to a source.",
+#         '__tablename__': 'sourcetag',
+#         '__table_args__': (
+#             schema.UniqueConstraint('source_id', 'key'),
+#         ),
+#         'source_id': Column(Integer,
+#                             ForeignKey('source.id',
+#                                        ondelete="cascade")),
+#         'source': orm.relationship("Source",
+#                                    back_populates="tags",
+#                                    uselist=False)
+#     }))
+
+
+class SourceTag(sautils._KeyValueItem, sautils.Base):
+    __tablename__ = 'sourcetag'
+    __table_args__ = (
+        schema.UniqueConstraint('source_id', 'key'),
+    )
+
+    source_id = Column(Integer, ForeignKey('source.id', ondelete="cascade"))
+    source = orm.relationship("Source", back_populates="tags", uselist=False)
 
 
 class Selection(EntityPropertyMixin, sautils.Base):
@@ -493,19 +492,51 @@ class Episode(sautils.Base):
         DEFAULT = '{series_with_mod} s{season:02d} e{number:02d}'
 
     def __init__(self, *args, **kwargs):
-        req = ['series', 'season', 'number']
-        check = all([
-            attr in kwargs
-            for attr in req
-        ])
-        if not check:
-            err = ("Insufficient arguments. "
-                   "Required: {req}, got: {got}")
-            err = err.format(req=', '.join(req),
-                             got=', '.join(kwargs.keys()))
-            raise TypeError(err)
-
+        attrs = (
+            'series',
+            'season',
+            'number'
+        )
+        _init_check_required(kwargs, attrs)
         super().__init__(*args, **kwargs)
+
+    def __eq__(self, other):
+        attrs = (
+            'series',
+            'modifier',
+            'season',
+            'number'
+        )
+        return _eq_from_attrs(self, other, attrs)
+
+    def __lt__(self, other):
+        attrs = (
+            'series',
+            'modifier'
+            'season',
+            'number'
+        )
+        return _lt_from_attrs(self, other, attrs)
+
+    def __repr__(self):
+        return "<Episode #{id} {fmt}>".format(
+            id=self.id or '??',
+            fmt=self.format())
+
+    def __str__(self):
+        return self.__unicode__()
+
+    def __unicode__(self):
+        return self.format()
+
+    @orm.validates(
+        'series',
+        'modifier',
+        'season',
+        'number'
+    )
+    def validate(self, key, value):
+        return self.normalize(key, value)
 
     @classmethod
     def normalize(cls, key, value):
@@ -529,15 +560,14 @@ class Episode(sautils.Base):
 
         return value
 
-    @orm.validates('series', 'modifier', 'season', 'number')
-    def validate(self, key, value):
-        return self.normalize(key, value)
-
     def asdict(self):
-        return {
-            attr: getattr(self, attr)
-            for attr in self
-        }
+        attrs = (
+            'series',
+            'modifier',
+            'season',
+            'number',
+        )
+        return _asdict_from_attrs(self, attrs)
 
     def format(self, fmt=Formats.DEFAULT, extra_data={}):
         d = self.asdict()
@@ -554,26 +584,6 @@ class Episode(sautils.Base):
             return fmt.format(**d)
         except TypeError:
             pass
-
-    def __eq__(self, other):
-        return all([
-            getattr(self, attr) == getattr(other, attr)
-            for attr in ['series', 'modifier', 'season', 'number']
-        ])
-
-    def __iter__(self):
-        yield from ['id', 'series', 'modifier', 'season', 'number']
-
-    def __repr__(self):
-        return "<Episode #{id} {fmt}>".format(
-            id=self.id or '??',
-            fmt=self.format())
-
-    def __str__(self):
-        return self.__unicode__()
-
-    def __unicode__(self):
-        return self.format()
 
 
 class Movie(sautils.Base):
@@ -592,6 +602,45 @@ class Movie(sautils.Base):
     class Formats:
         DEFAULT = '{title_with_mod}'
 
+    def __init__(self, *args, **kwargs):
+        attrs = (
+            'title',
+        )
+        _init_check_required(kwargs, attrs)
+        super().__init__(*args, **kwargs)
+
+    def __eq__(self, other):
+        attrs = (
+            'title',
+            'modifier'
+        )
+        return _eq_from_attrs(self, other, attrs)
+
+    def __lt__(self, other):
+        attrs = (
+            'title',
+            'modifier'
+        )
+        return _lt_from_attrs(self, other, attrs)
+
+    def __repr__(self):
+        return "<Movie #{id} {fmt}>".format(
+            id=self.id or '??',
+            fmt=self.format())
+
+    def __str__(self):
+        return self.__unicode__()
+
+    def __unicode__(self):
+        return self.format()
+
+    @orm.validates(
+        'title',
+        'modifier'
+    )
+    def validate(self, key, value):
+        return self.normalize(key, value)
+
     @classmethod
     def normalize(cls, key, value):
         if key == 'title':
@@ -609,15 +658,12 @@ class Movie(sautils.Base):
 
         return value
 
-    @orm.validates('title', 'modifier')
-    def validate(self, key, value):
-        return self.normalize(key, value)
-
     def asdict(self):
-        return {
-            attr: getattr(self, attr)
-            for attr in self
-        }
+        attrs = (
+            'title',
+            'modifier'
+        )
+        return _asdict_from_attrs(self, attrs)
 
     def format(self, fmt=Formats.DEFAULT, extra_data={}):
         d = self.asdict()
@@ -632,21 +678,45 @@ class Movie(sautils.Base):
 
         return fmt.format(**d)
 
-    def __iter__(self):
-        yield from ['id', 'title', 'modifier']
 
-    def __repr__(self):
-        return "<Movie #{id} {fmt}>".format(
-            id=self.id or '??',
-            fmt=self.format())
+def _init_check_required(kwargs, reqs):
+    check = all([attr in kwargs for attr in reqs])
 
-    def __str__(self):
-        return self.__unicode__()
+    if not check:
+        err = ("Insufficient arguments. "
+               "Required: {req}, got: {got}")
+        err = err.format(req=', '.join(reqs),
+                         got=', '.join(kwargs.keys()))
+        raise TypeError(err)
 
-    def __unicode__(self):
-        return self.format()
 
-    def __eq__(self, other):
-        return (
-            self.title == other.title and
-            self.modifier == other.modifier)
+def _eq_from_attrs(a, b, attrs):
+    if not isinstance(b, a.__class__):
+        raise TypeError(b.__class__)
+
+    try:
+        return all([
+            getattr(a, attr) == getattr(b, attr)
+            for attr in attrs
+        ])
+    except AttributeError as e:
+        raise TypeError(b) from e
+
+
+def _lt_from_attrs(a, b, attrs):
+    for attr in attrs:
+        if not hasattr(a, attr):
+            raise TypeError(a)
+
+        if not hasattr(b, attr):
+            raise TypeError(a)
+
+        ret = getattr(a, attr).__lt__(getattr(b, attr))
+        if ret != 0:
+            return ret
+
+    return 0
+
+
+def _asdict_from_attrs(x, attrs):
+    return {attr: getattr(x, attr) for attr in attrs}

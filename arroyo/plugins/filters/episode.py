@@ -36,11 +36,11 @@ class EpisodeFieldFilters(kit.FilterExtension):
     )
 
     def _exact_match(self, key, value, item):
-        try:
-            return getattr(item.entity, key) == value
-
-        except (AttributeError, KeyError):
+        # Don't use try-except block, it can mask underliying exceptions
+        if not hasattr(item, 'entity'):
             return False
+
+        return getattr(item.entity, key) == value
 
     def apply(self, key, value, it):
         if key in ('series', 'season', 'number'):
