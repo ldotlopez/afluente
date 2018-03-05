@@ -29,7 +29,7 @@ from sqlalchemy import (
     String,
     ForeignKey,
     and_,
-    event,
+    # event,
     func,
     orm,
     schema
@@ -47,86 +47,13 @@ sautils.Base.metadata.naming_convention = {
     "pk": "pk_%(table_name)s"
 }
 
-# Source:
-#   is EntityMixin
-
-# Episode, Movie:
-#    needs WhateverSelection
-#
-# EpisodeSelection, MovieSelection:
-#   is Selection
-# Selection:
-#   is EntityPropertyMixin
-
-
-@functools.lru_cache(maxsize=8)
-def _ensure_model_class(x):
-
-    try:
-        if issubclass(x, sautils.Base):
-            return x
-    except TypeError:
-        pass
-
-    if '.' in x:
-        mod = sys.modules[x]
-        x = x.split('.')[-1]
-
-    else:
-        mod = sys.modules[__name__]
-
-    cls = getattr(mod, x)
-    issubclass(cls, sautils.Base)
-
-    return cls
-
 
 class Variable(sautils.KeyValueItem, sautils.Base):
     __tablename__ = 'variable'
     __table_args__ = schema.UniqueConstraint('key'),
 
 
-class EntityPropertyMixin:
-    """
-    Adds support for `entity` property
-    Useful for Source and Selection
-
-    Classes using this mixin should define the class attribute ENTITY_MAP:
-    ENTITY_MAP = {
-        # Related class (as string or as class): attribute
-        'Episode': 'episode'
-    }
-    """
-
-    ENTITY_MAP = {}
-
-    @hybrid_property
-    def entity(self):
-        entity_attrs = self.ENTITY_MAP.values()
-
-        for attr in entity_attrs:
-            value = getattr(self, attr, None)
-            if value:
-                return value
-
-        return None
-
-    @entity.setter
-    def entity(self, entity):
-        m = {_ensure_model_class(k): v
-             for (k, v) in self.ENTITY_MAP.items()}
-
-        # Check for unknown entity type
-        if entity is not None and entity.__class__ not in m:
-            raise TypeError(entity)
-
-        # Set all entity-attributes correctly
-        for (model, attr) in m.items():
-            value = entity if isinstance(entity, model) else None
-            setattr(self, attr, value)
-
-
-class Source(EntityPropertyMixin, sautils.Base):
+class Source(sautils.Base):
     class Formats:
         DEFAULT = '{name}'
         DETAIL = (
@@ -135,11 +62,6 @@ class Source(EntityPropertyMixin, sautils.Base):
         )
 
     __tablename__ = 'source'
-
-    ENTITY_MAP = {  # EntityPropertyMixin
-        'Episode': 'episode',
-        'Movie': 'movie'
-    }
 
     # Required
     id = Column(Integer, primary_key=True)
@@ -297,6 +219,14 @@ class Source(EntityPropertyMixin, sautils.Base):
         return {x.key: x.value for x in self.tags}
 
     @hybrid_property
+    def entity(self):
+        return _entity_getter(self)
+
+    @entity.setter
+    def entity(self, entity):
+        _entity_setter(self, entity)
+
+    @hybrid_property
     def _discriminator(self):
         return self.urn or self.uri
 
@@ -391,27 +321,33 @@ class SourceTag(sautils.KeyValueItem, sautils.Base):
     source = orm.relationship("Source", back_populates="tags", uselist=False)
 
 
-class Selection(EntityPropertyMixin, sautils.Base):
+class Selection(sautils.Base):
     __tablename__ = 'selection'
-    ENTITY_MAP = {
-        'Episode': 'episode',
-        'Movie': 'movie'
+    __mapper_args__ = {
+        'polymorphic_on': 'type'
     }
 
     id = Column(Integer, primary_key=True)
     type = Column(String(50))
-
     source_id = Column(Integer,
                        ForeignKey('source.id', ondelete="cascade"),
                        nullable=False)
     source = orm.relationship('Source')
 
-    __mapper_args__ = {
-        'polymorphic_on': 'type'
-    }
+    @hybrid_property
+    def entity(self):
+        return _entity_getter(self)
+
+    @entity.setter
+    def entity(self, entity):
+        _entity_setter(self, entity)
 
 
 class EpisodeSelection(Selection):
+    __mapper_args__ = {
+        'polymorphic_identity': 'episode'
+    }
+
     episode_id = Column(Integer,
                         ForeignKey('episode.id', ondelete="CASCADE"),
                         nullable=True)
@@ -419,10 +355,6 @@ class EpisodeSelection(Selection):
                                backref=orm.backref("selection",
                                                    cascade="all, delete",
                                                    uselist=False))
-
-    __mapper_args__ = {
-        'polymorphic_identity': 'episode'
-    }
 
     def __repr__(self):
         fmt = '<EpisodeSelection {id} episode:{episode} <-> source:{source}'
@@ -433,6 +365,10 @@ class EpisodeSelection(Selection):
 
 
 class MovieSelection(Selection):
+    __mapper_args__ = {
+        'polymorphic_identity': 'movie'
+    }
+
     movie_id = Column(Integer,
                       ForeignKey('movie.id', ondelete="CASCADE"),
                       nullable=True)
@@ -440,10 +376,6 @@ class MovieSelection(Selection):
                              backref=orm.backref("selection",
                                                  cascade="all, delete",
                                                  uselist=False))
-
-    __mapper_args__ = {
-        'polymorphic_identity': 'movie'
-    }
 
     def __repr__(self):
         fmt = '<MovieSelection {id} movie:{movie} <-> source:{source}'
@@ -701,3 +633,33 @@ def _lt_from_attrs(a, b, attrs):
 
 def _asdict_from_attrs(x, attrs):
     return {attr: getattr(x, attr) for attr in attrs}
+
+
+def _entity_getter(x):
+    entity_attrs = (
+        'episode',
+        'movie'
+    )
+
+    for attr in entity_attrs:
+        value = getattr(x, attr, None)
+        if value:
+            return value
+
+    return None
+
+
+def _entity_setter(x, entity):
+    entity_map = {
+        Episode: 'episode',
+        Movie: 'movie'
+    }
+
+    # Check for unknown entity type
+    if entity is not None and entity.__class__ not in entity_map:
+        raise TypeError(entity)
+
+    # Set all entity-attributes correctly
+    for (model, attr) in entity_map.items():
+        value = entity if isinstance(entity, model) else None
+        setattr(x, attr, value)
