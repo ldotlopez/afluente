@@ -27,7 +27,9 @@ from arroyo import kit
 class Epublibre(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
     __extension_name__ = 'epublibre'
 
-    DEFAULT_URI = 'https://epublibre.org/catalogo/index/0/nuevo/novedades/sin/todos'  # nopep8
+    DEFAULT_URI = (
+        'https://epublibre.org/catalogo/index/0/nuevo/novedades/sin/todos/'
+    )
     URI_PATTERNS = [
         r'^http(s)?://([^.]\.)?epublibre\.org/'
     ]
@@ -35,13 +37,15 @@ class Epublibre(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
     def get_query_uri(self, query):
         if query.type != 'ebook':
             return
-        import ipdb; ipdb.set_trace(); pass
-        q = query.base_string
-        if not q:
+
+        try:
+            querystr = str(query)
+        except kit.QueryConversionError:
+            err = "Unable to convert query into a string"
+            self.logger.error(err)
             return
 
-        return 'https://www.epublibre.org/catalogo/index/0/nuevo/todos/sin/todos/{q}'.format(  # nopep8
-            q=parse.quote(q))
+        return self.DEFAULT_URI + parse.quote(querystr)
 
     def parse_soup(self, soup):
         if soup.select('#titulo_libro'):
@@ -75,6 +79,7 @@ class Epublibre(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
             'uri': href,
             'name': '{author} {title}'.format(author=author, title=title)
         }]
+
 
 __arroyo_extensions__ = [
     Epublibre

@@ -21,12 +21,9 @@
 import asyncio
 import traceback
 import sys
-from urllib import parse
 
 
 import appkit
-from appkit import utils
-from appkit.blocks import cache
 from appkit.libs import urilib
 
 
@@ -61,22 +58,6 @@ class Origin:
         return self.provider.__extension_name__
 
 
-class ScanCache(cache.DiskCache):
-    def __init__(self, *args, **kwargs):
-        basedir = (
-            kwargs.pop('basedir', None) or
-            utils.user_path(utils.UserPathType.CACHE, name='scan')
-        )
-        delta = kwargs.pop('delta', None) or 60*60
-        super().__init__(*args, basedir=basedir, delta=delta, **kwargs)
-
-    def encode_key(self, query):
-        data = query.asdict()
-        data = sorted(data.items())
-        key = parse.urlencode(data)
-        return self.basedir / key
-
-
 class Scanner:
     def __init__(self, logger=None, providers=None):
         if providers is None:
@@ -84,7 +65,6 @@ class Scanner:
             raise ValueError(providers, msg)
 
         self.logger = logger or appkit.Null
-        self.cache = ScanCache()
         self.providers = providers
 
     def scan(self, query):
@@ -102,18 +82,8 @@ class Scanner:
         #             entity=entity,
         #             meta=meta)
 
-        try:
-            ret = self.cache.get(query)
-            msg = "Scan data found in cache"
-            self.logger.debug(msg)
-            return ret
-        except KeyError:
-            msg = "Scan data missing from cache"
-            self.logger.debug(msg)
-
         # Get origins for query
         origins = self.origins_for_query(query)
-
         origins_data = self.process(*origins)
 
         # ret = list(_scan(origins_data))
@@ -122,7 +92,6 @@ class Scanner:
             for x in origins_data
         ]
 
-        self.cache.set(query, ret)
         return ret
 
     def origins_for_query(self, query):

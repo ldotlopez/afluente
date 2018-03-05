@@ -22,6 +22,8 @@ import asyncio
 import contextlib
 import itertools
 import functools
+import os
+from urllib import parse
 
 
 from appkit import (
@@ -75,8 +77,9 @@ class Arroyo(kit.Application):
     ]
 
     DEFAULT_SETTINGS = {
-        'log-level': 'INFO',
-        'plugins.commands.settings.enabled': False
+        kit.SettingsKeys.LOG_LEVEL: 'INFO',
+        kit.SettingsKeys.COMMANDS_NS + 'settings.enabled': False,
+        kit.SettingsKeys.ENABLE_CACHE: True
     }
 
     def __init__(self):
@@ -87,7 +90,9 @@ class Arroyo(kit.Application):
         self.register_extension_point(kit.FilterExtension)
         self.register_extension_point(kit.ProviderExtension)
 
-        plugin_enabled_key_tmpl = 'plugins.{name}.enabled'
+        plugin_enabled_key_tmpl = (
+            kit.SettingsKeys.PLUGINS_NS + '{name}.enabled'
+        )
 
         for plugin in self.DEFAULT_PLUGINS:
             settings_key = plugin_enabled_key_tmpl.format(name=plugin)
@@ -100,14 +105,38 @@ class Arroyo(kit.Application):
                 msg = msg.format(name=plugin)
                 self.logger.info(msg)
 
+        self.caches = {
+            Caches.SCAN: cache.NullCache()
+        }
+
+    def setup_parser(self, parser):
+        super().setup_parser(parser)
+        parser.add_argument(
+            '--disable-cache',
+            action='store_true',
+            help='Disable all caches'
+        )
+
+    def consume_application_parameters(self, parameters):
+        enable_cache = not parameters.pop('disable_cache', False)
+        self.settings.set(kit.SettingsKeys.ENABLE_CACHE, enable_cache)
+        if enable_cache:
+            self.caches[Caches.SCAN] = ArroyoScanCache()
+
+        super().consume_application_parameters(parameters)
+
     def get_providers(self):
         return [(name, self.get_provider(name))
                 for name in
                 self.get_extension_names_for(kit.ProviderExtension)]
 
     def get_provider(self, name):
-        default_settings_key_tmpl = 'plugins.providers.{name}.default-{key}'
-        override_settings_key_tmpl = 'plugins.providers.{name}.force-{key}'
+        default_settings_key_tmpl = (
+            kit.SettingsKeys.PROVIDERS_NS + '{name}.default-{key}'
+        )
+        override_settings_key_tmpl = (
+            kit.SettingsKeys.PROVIDERS_NS + '{name}.force-{key}'
+        )
 
         # Build provider's defaults and overrides from settings
         fields = ['language', 'type']
@@ -158,13 +187,26 @@ class Arroyo(kit.Application):
                 src.tags = {tag.key: tag for tag in tags}
                 yield src
 
-        s = scanner.Scanner(
-            logger=self.logger,
-            providers=self.get_providers())
+        try:
+            sources_and_metas = self.caches[Caches.SCAN].get(query)
+            msg = "Scan data found in cache"
+            self.logger.debug(msg)
 
-        sources_and_metas = s.scan(query)
+        except KeyError:
+            msg = "Scan data missing from cache"
+            self.logger.debug(msg)
 
-        return list(_post_process(sources_and_metas))
+            s = scanner.Scanner(logger=self.logger,
+                                providers=self.get_providers())
+            sources_and_metas = s.scan(query)
+
+            self.caches[Caches.SCAN].set(query, sources_and_metas)
+
+        # Processed results can't be cached due a error
+        # in serialization of tags
+        results = list(_post_process(sources_and_metas))
+
+        return results
 
     def filter(self, results, query):
         filters = self.get_filters()
@@ -174,7 +216,7 @@ class Arroyo(kit.Application):
             return []
 
         fe = filterengine.Engine(
-            filters=dict(filters).values(),
+            filters=(x[1] for x in filters),
             logger=self.logger)
 
         res = fe.filter(results, query)
@@ -253,3 +295,26 @@ class ArroyoAsyncHTTPClient(httpclient.AsyncHTTPClient):
         kwargs['timeout'] = self._timeout
         resp, content = yield from super().fetch_full(*args, **kwargs)
         return resp, content
+
+
+class Caches:
+    SCAN = 'scan'
+    NETWORK = 'network'
+    FILTER = 'filter'
+
+
+class ArroyoScanCache(cache.DiskCache):
+    def __init__(self, *args, **kwargs):
+        basedir = (
+            kwargs.pop('basedir', None) or
+            utils.user_path(utils.UserPathType.CACHE, name='scan')
+        )
+        os.makedirs(basedir, exist_ok=True)
+        delta = kwargs.pop('delta', None) or 60*60
+        super().__init__(*args, basedir=basedir, delta=delta, **kwargs)
+
+    def encode_key(self, query):
+        data = query.asdict()
+        data = sorted(data.items())
+        key = parse.urlencode(data)
+        return self.basedir / key

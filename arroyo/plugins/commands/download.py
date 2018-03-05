@@ -37,11 +37,20 @@
 # models = pluginlib.models
 
 
-import pprint
+import pathlib
+import pickle
 
 
 import appkit
+from appkit import utils
+
+
 from arroyo import kit
+
+
+SAV_FILE = (
+    pathlib.Path(utils.user_path(utils.UserPathType.CACHE)) /
+    'last-search.dat')
 
 
 class DownloadConsoleCommand(kit.CommandExtension):
@@ -80,23 +89,37 @@ class DownloadConsoleCommand(kit.CommandExtension):
         else:
             raise NotImplemented()
 
-        res = self.shell.search(query)
-        if not res:
+        results = self.shell.search(query)
+        if not results:
             err = "No results found"
             self.shell.logger.error(err)
             return
 
-        res = self.shell.filter(res, query)
-        if not res:
+        results = self.shell.filter(results, query)
+        if not results:
+            err = "No matching results found"
+            self.shell.logger.error(err)
             return
 
-        res = self.shell.group(res)
+        results = [(leader, list(group))
+                   for (leader, group)
+                   in self.shell.group(results)]
 
-        for (leader, group) in res:
+        # with SAV_FILE.open('wb+') as fh:
+        #     pickle.dump(results, fh)
+
+        self.display_results(results)
+
+    def display_results(self, results):
+        i = 1
+        for (leader, group) in results:
             print(leader or 'None')
             print('----')
-            for x in group:
-                print("   {0!r}".format(x))
+            for src in group:
+                msg = "[{id}]   {src!r}"
+                msg = msg.format(id=i, src=src)
+                print(msg)
+                i += 1
             print()
 
 

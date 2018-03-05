@@ -215,12 +215,28 @@ class Source(EntityPropertyMixin, sautils.Base):
         return self.id.__lt__(other.id)
 
     def __iter__(self):
-        yield from [
-            'age', 'created', 'entity', 'episode', 'episode_id', 'id',
-            'language', 'last_seen', 'leechers', 'movie', 'movie_id', 'name',
-            'provider', 'seeds', 'share_ratio', 'size', 'tags', 'type', 'type',
-            'uri', 'urn'
-        ]
+        yield from (
+            'age',
+            'created',
+            'entity',
+            'episode',
+            'episode_id',
+            'id',
+            'language',
+            'last_seen',
+            'leechers',
+            'movie',
+            'movie_id',
+            'name',
+            'provider',
+            'seeds',
+            'share_ratio',
+            'size',
+            'tags',
+            'type',
+            'uri',
+            'urn'
+        )
 
     def __str__(self):
         return self.format(self.Formats.DEFAULT)
@@ -483,14 +499,10 @@ class Episode(sautils.Base):
             for attr in req
         ])
         if not check:
-            err = (
-                "Insufficient arguments. "
-                "Required: {req}, got: {got}"
-            )
-            err = err.format(
-                req=', '.join(req),
-                got=', '.join(kwargs.keys())
-            )
+            err = ("Insufficient arguments. "
+                   "Required: {req}, got: {got}")
+            err = err.format(req=', '.join(req),
+                             got=', '.join(kwargs.keys()))
             raise TypeError(err)
 
         super().__init__(*args, **kwargs)
@@ -637,5 +649,4 @@ class Movie(sautils.Base):
     def __eq__(self, other):
         return (
             self.title == other.title and
-            self.modifier == other.modifier
-        )
+            self.modifier == other.modifier)

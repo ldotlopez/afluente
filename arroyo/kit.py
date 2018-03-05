@@ -19,6 +19,7 @@
 
 
 import abc
+import enum
 import re
 
 
@@ -26,7 +27,7 @@ import bs4
 from appkit import application
 from appkit.application import console
 from appkit.blocks import extensionmanager
-from arroyo.dbmodels import (
+from arroyo.models import (
     Episode,
     Movie,
     Source,
@@ -319,3 +320,12 @@ class Application(ConsoleApplicationMixin, application.Application):
 
     def get_shell(self):
         return self
+
+
+class SettingsKeys:
+    ENABLE_CACHE = 'enable-cache'
+    LOG_LEVEL = 'log-level'
+    COMMANDS_NS = 'plugins.commands.'
+    FILTERS_NS = 'plugins.filters.'
+    PLUGINS_NS = 'plugins.'
+    PROVIDERS_NS = 'plugins.providers.'
