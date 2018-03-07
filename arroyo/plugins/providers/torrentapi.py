@@ -151,16 +151,17 @@ class TorrentAPI(kit.ProviderExtension):
     def get_query_uri(self, query):
         try:
             querystr = str(query)
-        except kit.QueryConversionError:
-            err = "Unable to convert query into a string"
-            self.logger.error(err)
-            return None
+        except kit.QueryConversionError as e:
+            err = "Incomprehensible query"
+            raise kit.IncompatibleQueryError(err) from e
 
         qs = dict(search_string=querystr)
         try:
             qs['category'] = self.CATEGORY_MAP[query.type]
         except AttributeError:
-            pass
+            err = "Unclassifiable type '{type}'"
+            err = err.format(type=query.type)
+            raise kit.IncompatibleQueryError(err)
 
         return self.SEARCH_URL + "&" + parse.urlencode(qs)
 

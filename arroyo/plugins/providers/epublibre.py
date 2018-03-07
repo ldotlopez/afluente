@@ -36,14 +36,13 @@ class Epublibre(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
 
     def get_query_uri(self, query):
         if query.type != 'ebook':
-            return
+            raise kit.IncompatibleQueryError()
 
         try:
             querystr = str(query)
-        except kit.QueryConversionError:
-            err = "Unable to convert query into a string"
-            self.logger.error(err)
-            return
+        except kit.QueryConversionError as e:
+            err = "Incomprehensible query"
+            raise kit.IncompatibleQueryError(err) from e
 
         return self.DEFAULT_URI + parse.quote(querystr)
 

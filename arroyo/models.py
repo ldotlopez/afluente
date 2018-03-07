@@ -18,7 +18,6 @@
 # USA.
 
 
-import functools
 import re
 import sys
 
@@ -64,15 +63,15 @@ class Source(sautils.Base):
     __tablename__ = 'source'
 
     # Required
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, autoincrement=True, unique=True, primary_key=False)
     provider = Column(String, nullable=False)
     name = Column(String, nullable=False)
     created = Column(Integer, nullable=False)
     last_seen = Column(Integer, nullable=False)
 
     # Real ID
-    urn = Column(String, nullable=True, unique=True,)
-    uri = Column(String, nullable=False, unique=True)
+    urn = Column(String, nullable=True, unique=True)
+    uri = Column(String, nullable=False, unique=True, primary_key=True)
 
     # Other data
     size = Column(Integer, nullable=True)
@@ -133,6 +132,9 @@ class Source(sautils.Base):
 
     def __str__(self):
         return self.format(self.Formats.DEFAULT)
+
+    def __hash__(self):
+        return hash(self.uri)
 
     @orm.validates('name', 'provider', 'urn', 'uri', 'language', 'type')
     def validate(self, key, value):

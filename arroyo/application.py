@@ -22,8 +22,6 @@ import asyncio
 import contextlib
 import itertools
 import functools
-import os
-from urllib import parse
 
 
 from appkit import (
@@ -35,10 +33,13 @@ from appkit.blocks import (
     httpclient,
     quicklogging
 )
+from appkit.db import sqlalchemyutils as sautils
 
 
 from arroyo import kit
 from arroyo.helpers import (
+    database,
+    downloads,
     filterengine,
     mediaparser,
     scanner
@@ -66,9 +67,12 @@ class Arroyo(kit.Application):
         'commands.download',
         'commands.settings',
 
+        'downloaders.mock',
+
         'filters.episode',
         'filters.movie',
         'filters.source',
+        'filters.state',
         'filters.tags',
 
         'providers.epublibre',
@@ -79,17 +83,49 @@ class Arroyo(kit.Application):
     DEFAULT_SETTINGS = {
         kit.SettingsKeys.LOG_LEVEL: 'INFO',
         kit.SettingsKeys.COMMANDS_NS + 'settings.enabled': False,
-        kit.SettingsKeys.ENABLE_CACHE: True
+        kit.SettingsKeys.ENABLE_CACHE: True,
+        kit.SettingsKeys.DOWNLOADER: 'mock',
+        kit.SettingsKeys.DB_URI: (
+            'sqlite:///' +
+            utils.user_path(utils.UserPathType.DATA, 'arroyo.db', create=True))
     }
 
     def __init__(self):
         super().__init__(
             name='arroyo',
-            logger=quicklogging.QuickLogger(level=quicklogging.Level.WARNING))
+            logger=kit.QuickLogger(level=quicklogging.Level.WARNING))
 
+        # Open database connection
+        db_uri = self.settings.get(kit.SettingsKeys.DB_URI)
+        # Add check_same_thread=False to db_uri.
+        # FIXME: This is a _hack_ required by the webui plugin.
+        if '?' in db_uri:
+            db_uri += '&check_same_thread=False'
+        else:
+            db_uri += '?check_same_thread=False'
+        self._db_sess = sautils.create_session(db_uri)
+
+        # Initialize app variables
+        self.variables = sautils.KeyValueManager(kit.Variable, self._db_sess)
+
+        # Register extension points
         self.register_extension_point(kit.FilterExtension)
         self.register_extension_point(kit.ProviderExtension)
+        self.register_extension_point(kit.DownloaderExtension)
 
+        # Initialize database controller
+        self.db = database.Database(self._db_sess)
+
+        # app.register_extension_class(DownloadSyncCronTask)
+        # app.register_extension_class(DownloadQueriesCronTask)
+        # app.signals.register('source-state-change')
+
+        # Initialize app caches
+        self.caches = {
+            kit.Caches.SCAN: cache.NullCache()
+        }
+
+        # Initialize plugins
         plugin_enabled_key_tmpl = (
             kit.SettingsKeys.PLUGINS_NS + '{name}.enabled'
         )
@@ -105,25 +141,14 @@ class Arroyo(kit.Application):
                 msg = msg.format(name=plugin)
                 self.logger.info(msg)
 
-        self.caches = {
-            Caches.SCAN: cache.NullCache()
-        }
+    #
+    # Own methods
+    #
 
-    def setup_parser(self, parser):
-        super().setup_parser(parser)
-        parser.add_argument(
-            '--disable-cache',
-            action='store_true',
-            help='Disable all caches'
-        )
-
-    def consume_application_parameters(self, parameters):
-        enable_cache = not parameters.pop('disable_cache', False)
-        self.settings.set(kit.SettingsKeys.ENABLE_CACHE, enable_cache)
-        if enable_cache:
-            self.caches[Caches.SCAN] = ArroyoScanCache()
-
-        super().consume_application_parameters(parameters)
+    @property
+    def downloads(self):
+        downloader_plugin = self.settings.get(kit.SettingsKeys.DOWNLOADER)
+        return self.get_downloader(downloader_plugin)
 
     def get_providers(self):
         return [(name, self.get_provider(name))
@@ -165,7 +190,10 @@ class Arroyo(kit.Application):
         return self.get_extensions_for(kit.FilterExtension)
 
     def get_filter(self, name):
-        return self.get_extensions(kit.FilterExtension, name)
+        return self.get_extension(kit.FilterExtension, name)
+
+    def get_downloader(self, name):
+        return self.get_extension(kit.DownloaderExtension, name)
 
     def search(self, query):
         def _post_process(items):
@@ -188,7 +216,7 @@ class Arroyo(kit.Application):
                 yield src
 
         try:
-            results = self.caches[Caches.SCAN].get(query)
+            results = self.caches[kit.Caches.SCAN].get(query)
             msg = "Scan data found in cache"
             self.logger.debug(msg)
 
@@ -201,13 +229,13 @@ class Arroyo(kit.Application):
             sources_and_metas = s.scan(query)
             results = list(_post_process(sources_and_metas))
 
-            self.caches[Caches.SCAN].set(query, results)
+            self.caches[kit.Caches.SCAN].set(query, results)
 
         # Processed results can't be cached due a error
         # in serialization of tags
         return results
 
-    def filter(self, results, query):
+    def filter(self, results, query, ignore_state=False):
         filters = self.get_filters()
         if not filters:
             msg = "No filters available"
@@ -218,8 +246,11 @@ class Arroyo(kit.Application):
             filters=(x[1] for x in filters),
             logger=self.logger)
 
-        res = fe.filter(results, query)
-        return res
+        results = fe.filter(query, results)
+        if not ignore_state:
+            results = fe.apply(self.get_filter('state'), None, None, results)
+
+        return results
 
     def group(self, results):
         groups = {
@@ -253,16 +284,31 @@ class Arroyo(kit.Application):
                     x.entity.modifier or ''))
         )
 
-        return itertools.groupby(
+        groups = itertools.groupby(
             in_order,
             key=lambda x: x.entity if x.entity else None)
+
+        ret = []
+        for (leader, group) in groups:
+            group = list(group)
+            if leader:
+                for source in group:
+                    source.entity = leader
+
+            ret.append((leader, group))
+
+        return ret
+
+    def select(select, options, query):
+        return options[0]
+
+    def download(self, source):
+        self.db.save(source)
+        self.downloads.add(source)
 
     @contextlib.contextmanager
     def get_async_http_client(self):
         yield ArroyoAsyncHTTPClient()
-
-    def main(self):
-        print('arroyo is up and running')
 
 
 class ArroyoAsyncHTTPClient(httpclient.AsyncHTTPClient):
@@ -294,26 +340,3 @@ class ArroyoAsyncHTTPClient(httpclient.AsyncHTTPClient):
         kwargs['timeout'] = self._timeout
         resp, content = yield from super().fetch_full(*args, **kwargs)
         return resp, content
-
-
-class Caches:
-    SCAN = 'scan'
-    NETWORK = 'network'
-    FILTER = 'filter'
-
-
-class ArroyoScanCache(cache.DiskCache):
-    def __init__(self, *args, **kwargs):
-        basedir = (
-            kwargs.pop('basedir', None) or
-            utils.user_path(utils.UserPathType.CACHE, name='scan')
-        )
-        os.makedirs(basedir, exist_ok=True)
-        delta = kwargs.pop('delta', None) or 60*60
-        super().__init__(*args, basedir=basedir, delta=delta, **kwargs)
-
-    def encode_key(self, query):
-        data = query.asdict()
-        data = sorted(data.items())
-        key = parse.urlencode(data)
-        return self.basedir / key

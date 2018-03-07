@@ -19,38 +19,76 @@
 
 
 import abc
-import enum
+import os
 import re
+from urllib import parse
 
 
 import bs4
-from appkit import application
+from appkit import (
+    application,
+    utils
+)
 from appkit.application import console
-from appkit.blocks import extensionmanager
+from appkit.blocks import (
+    cache,
+    extensionmanager,
+    quicklogging
+)
 from arroyo.models import (
     Episode,
     Movie,
     Source,
-    SourceTag
+    SourceTag,
+    Variable
 )
 
 # Short-hands
 Parameter = application.Parameter
-Extension = application.Extension
+# Extension = application.Extension
 
 
-class CommandExtension(Extension, console.ConsoleCommandExtension):
+class QuickLogger(quicklogging.QuickLogger):
     """
-    Extension for commands. Mixing with ConsoleCommandExtension
+    Override QuickLogger to use our Formatter
     """
-    pass
+    def __init__(self, *args, **kwargs):
+        kwargs['formatter_class'] = LoggerFormatter
+        super().__init__(*args, **kwargs)
 
 
-class DownloaderExtension(Extension):
+class LoggerFormatter(quicklogging.DefaultFormatter):
     """
-    Extension for downloaders
+    This formater uses three characters codes for level names
     """
-    pass
+    _LEVEL_NAMES = {
+        'CRITICAL': '!!!',
+        'ERROR': 'ERR',
+        'WARNING': 'WRN',
+        'INFO': 'INF',
+        'DEBUG': 'DBG'
+    }
+
+    def format(self, record):
+        record.levelname = self._LEVEL_NAMES[record.levelname]
+        return super().format(record)
+
+
+class Extension(application.Extension):
+    """
+    Our extensions class adds a built-in logger
+    """
+    def __init__(self, shell, *args, **kwargs):
+        logger = kwargs.pop('logger')
+        super().__init__(shell, *args, **kwargs)
+        self.logger = logger.getChild(self.__extension_name__)
+
+        # FIXME: This is a hack
+        # Parent logger can change its level to a lower level in the future.
+        # Since level doesnt propage to children (even with NOTSET level) we
+        # get the future level from settings
+        # NOTE: this is not dynamic.
+        self.logger.setLevel(shell.settings.get(SettingsKeys.LOG_LEVEL))
 
 
 class FilterExtension(Extension):
@@ -155,6 +193,62 @@ class BS4ParserProviderExtensionMixin:
     @abc.abstractmethod
     def parse_soup(self, soup):
         raise NotImplementedError()
+
+
+class IncompatibleQueryError(Exception):
+    """
+    Raised by Providers if cant generate an URI for a query
+    """
+    pass
+
+
+class DownloaderExtension(Extension):
+    """
+    Extension for downloaders
+    """
+
+    def add(self, source):
+        """Adds source to download.
+
+        Must return True on successful or raise an Exception on failure
+        """
+        raise NotImplementedError()
+
+    def cancel(self, foreign_id):
+        """Cancels foreign ID and deletes any possible file
+
+        Must return True on successful or raise an Exception on failure
+        """
+        raise NotImplementedError()
+
+    def archive(self, foreign_id):
+        """Archives source to download, just remove it from downloader keeping
+        any possible files
+
+        Must return True on successful or raise an Exception on failure
+        """
+        raise NotImplementedError()
+
+    def list(self):
+        raise NotImplementedError()
+
+    def get_state(self, foreign_id):
+        raise NotImplementedError()
+
+    def get_info(self, foreign_id):
+        raise NotImplementedError()
+
+    def id_for_source(self, source):
+        """For tests. Returns an acceptable (even simulated or random) local ID
+        for this source"""
+        raise NotImplementedError()
+
+
+class CommandExtension(Extension, console.ConsoleCommandExtension):
+    """
+    Extension for commands. Mixing with ConsoleCommandExtension
+    """
+    pass
 
 
 class Query:
@@ -308,6 +402,9 @@ class Application(ConsoleApplicationMixin, application.Application):
     Mix necessary mixins and override some methods
     """
     def load_plugin(self, plugin_name, *args, **kwargs):
+        """
+        Override this method to allow debugging and catch exceptions
+        """
         try:
             super().load_plugin(plugin_name, *args, **kwargs)
             msg = "Loaded plugin {name}"
@@ -319,10 +416,61 @@ class Application(ConsoleApplicationMixin, application.Application):
             self.logger.error(msg)
 
     def get_shell(self):
+        """
+        Implement shell
+        """
         return self
+
+    def setup_parser(self, parser):
+        super().setup_parser(parser)
+        parser.add_argument(
+            '--disable-cache',
+            action='store_true',
+            help='Disable all caches'
+        )
+
+    def consume_application_parameters(self, parameters):
+        enable_cache = not parameters.pop('disable_cache', False)
+        self.settings.set(SettingsKeys.ENABLE_CACHE, enable_cache)
+        if enable_cache:
+            self.caches[Caches.SCAN] = ArroyoScanCache()
+
+        super().consume_application_parameters(parameters)
+
+    def main(self):
+        print('arroyo is up and running')
+
+    def get_extension(self, extension_point, name, *args, **kwargs):
+        kwargs['logger'] = self.logger
+        return super().get_extension(extension_point, name, *args, **kwargs)
+
+
+class ArroyoScanCache(cache.DiskCache):
+    def __init__(self, *args, **kwargs):
+        basedir = (
+            kwargs.pop('basedir', None) or
+            utils.user_path(utils.UserPathType.CACHE, name='scan')
+        )
+        os.makedirs(basedir, exist_ok=True)
+        delta = kwargs.pop('delta', None) or 60*60
+        super().__init__(*args, basedir=basedir, delta=delta, **kwargs)
+
+    def encode_key(self, query):
+        data = query.asdict()
+        data = sorted(data.items())
+        key = parse.urlencode(data)
+        return self.basedir / key
+
+
+class Caches:
+    SCAN = 'scan'
+    NETWORK = 'network'
+    FILTER = 'filter'
 
 
 class SettingsKeys:
+    DB_URI = 'db-uri'
+    DOWNLOADER = 'downloader'
     ENABLE_CACHE = 'enable-cache'
     LOG_LEVEL = 'log-level'
     COMMANDS_NS = 'plugins.commands.'

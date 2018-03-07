@@ -113,14 +113,16 @@ class DownloadConsoleCommand(kit.CommandExtension):
             self.shell.logger.error(err)
             return
 
-        results = [(leader, list(group))
-                   for (leader, group)
-                   in self.shell.group(results)]
+        results = self.shell.group(results)
 
         with SAV_FILE.open('wb+') as fh:
             pickle.dump(results, fh)
 
         self.display_results(results)
+        for (entity, options) in results:
+            selected = self.shell.select(options, query)
+            print(selected)
+            self.shell.download(selected)
 
     def display_results(self, results):
         i = 1

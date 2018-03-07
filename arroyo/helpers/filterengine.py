@@ -18,10 +18,14 @@
 # USA.
 
 
+import collections
 import functools
 
 
 from appkit import Null
+
+
+from arroyo import kit
 
 
 class MissingFilterError(Exception):
@@ -64,7 +68,31 @@ class Engine:
         # self.logger.warning(msg)
         # raise
 
-    def filter(self, results, query):
+    def apply(self, filter, handler, value, results):
+        if isinstance(results, list):
+            prev = len(results)
+        else:
+            prev = '?? (iterable)'
+
+        results = filter.apply(handler, value, results)
+
+        if isinstance(results, list):
+            curr = len(results)
+        else:
+            curr = '?? (iterable)'
+
+        msg = "Applied {name} over {prev} items: {curr} results"
+        msg = msg.format(name=handler, prev=prev, curr=curr)
+        self.logger.debug(msg)
+
+        return results
+
+    def filter(self, query, results):
+        if not isinstance(query, kit.Query):
+            raise TypeError(query)
+        if not isinstance(results, collections.Iterable):
+            raise TypeError(results)
+
         filters, missing = self.get_for_query(query)
 
         if not filters:
@@ -77,19 +105,21 @@ class Engine:
             msg = msg.format(key=key)
             self.logger.warning(msg)
 
-        results = list(results)
         for (handler, filter) in filters:
-            fn = functools.partial(filter.apply,
-                                   handler,
-                                   getattr(query, handler))
+            results = self.apply(filter,
+                                 handler, getattr(query, handler),
+                                 results)
+            # fn = functools.partial(filter.apply,
+            #                        handler,
+            #                        getattr(query, handler))
 
-            prev = len(results)
-            results = list(fn(results))
-            curr = len(results)
+            # prev = len(results)
+            # results = list(fn(results))
+            # curr = len(results)
 
-            msg = "Applied {name} over {prev} items: {curr} results"
-            msg = msg.format(name=handler, prev=prev, curr=curr)
-            self.logger.debug(msg)
+            # msg = "Applied {name} over {prev} items: {curr} results"
+            # msg = msg.format(name=handler, prev=prev, curr=curr)
+            # self.logger.debug(msg)
 
         if not isinstance(results, list):
             results = list(results)

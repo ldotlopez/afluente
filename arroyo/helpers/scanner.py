@@ -110,12 +110,31 @@ class Scanner:
         exts_and_uris = []
 
         for (name, ext) in self.providers:
-            uri = ext.get_query_uri(query)
-            if uri:
-                msg = " Found compatible origin '{name}'"
-                msg = msg.format(name=name)
-                self.logger.info(msg)
-                exts_and_uris.append((ext, uri))
+            try:
+                uri = ext.get_query_uri(query)
+            except kit.IncompatibleQueryError as e:
+                err = "Incompatible provider '{provider}'"
+                err = err.format(provider=name)
+
+                excstr = str(e)
+                if excstr:
+                    err += ": " + excstr
+                    self.logger.warning(err)
+                else:
+                    self.logger.info(err)
+                continue
+
+            # FIXME: Implement this in tests
+            if not uri:
+                err = "Provider {provider} has returned an empty URI. Fix it."
+                err = err.format(provider=name)
+                self.logger.critical(err)
+                continue
+
+            msg = "Compatible provider   '{name}' ({uri})"
+            msg = msg.format(name=name, uri=uri)
+            self.logger.info(msg)
+            exts_and_uris.append((ext, uri))
 
         if not exts_and_uris:
             msg = "No compatible origins found for {query!r}"

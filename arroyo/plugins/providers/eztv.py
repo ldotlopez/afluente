@@ -76,12 +76,13 @@ class Eztv(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
     def get_query_uri(self, query):
         # eztv only has series
         if query.type != 'episode':
-            return
+            raise kit.IncompatibleQueryError()
 
         try:
             series = query.series
         except AttributeError:
-            return
+            err = 'Missing series'
+            raise kit.IncompatibleQueryError(err)
 
         q = series.strip().replace(' ', '-')
 
