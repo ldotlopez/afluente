@@ -67,14 +67,19 @@ class Source(sautils.Base):
                         nullable=True)
     episode = orm.relationship('Episode',
                                uselist=False,
-                               backref=orm.backref("sources", lazy='dynamic'))
+                               backref=orm.backref("sources",
+                                                   cascade_backrefs=False,
+                                                   lazy='select'))
+
 
     movie_id = Column(Integer,
                       ForeignKey('movie.id', ondelete="SET NULL"),
                       nullable=True)
     movie = orm.relationship('Movie',
                              uselist=False,
-                             backref=orm.backref("sources", lazy='dynamic'))
+                             backref=orm.backref("sources",
+                                                 cascade_backrefs=False,
+                                                 lazy='select'))
 
     def __init__(self, name, uri, provider,
                  timestamp=None,

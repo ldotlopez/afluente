@@ -77,8 +77,7 @@ class Database:
 
         # Deep-first merging
         if isinstance(obj, kit.Source) and obj.entity:
-            entity = self.merge(obj.entity)
-            entity.sources.append(obj)
+            obj.entity = self.merge(obj.entity)
 
         self.session.add(obj)
         return obj
