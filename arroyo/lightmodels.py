@@ -99,10 +99,10 @@ class Source(sautils.Base):
         super().__init__(name=name, uri=uri, provider=provider)
 
     def __eq__(self, other):
-        return _eq_from_attrs(self, ('uri',))
+        return _eq_from_attrs(self, other, ('uri',))
 
     def __lt__(self, other):
-        return _lt_from_attrs(self, ('name',))
+        return _lt_from_attrs(self, other, ('name',))
 
     def __repr__(self):
         return "<Source #{id} {fmt} object at 0x{oid:x}>".format(
@@ -264,10 +264,9 @@ class Source(sautils.Base):
 
     def format(self, fmt='{name}', extra_data={}):
         data = self.asdict()
-        data['seeds'] = data.get('seeds') or '-'
-        data['leechers'] = data.get('leechers') or '-'
-        data['language'] = data.get('language') or 'unknow'
-
+        data['seeds'] = data.get('seeds', '-')
+        data['leechers'] = data.get('leechers', '-')
+        data['language'] = data.get('language', 'unknow')
         data.update(extra_data)
 
         return fmt.format(**data)
@@ -365,17 +364,18 @@ class Episode(sautils.Base):
     modifier = Column(String, nullable=False, default='')
     season = Column(Integer, nullable=False)
     number = Column(Integer, nullable=False)
+    test = Column(String, nullable=True)
 
     # SELECTION_MODEL = EpisodeSelection
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, modifier='', **kwargs):
         attrs = (
             'series',
             'season',
             'number'
         )
         _init_check_required(kwargs, attrs)
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, modifier=modifier, **kwargs)
 
     def __eq__(self, other):
         attrs = (
@@ -424,9 +424,9 @@ class Episode(sautils.Base):
                 raise ValueError(value)
 
         elif key == 'modifier':
-            value = str(value) if value else ''
+            value = str(value) if value is not None else ''
 
-        elif key in ['season', 'number', 'modifier']:
+        elif key in ['season', 'number']:
             value = int(value)
             if value < 0:
                 raise ValueError(value)
@@ -435,6 +435,26 @@ class Episode(sautils.Base):
             raise NotImplementedError(key)
 
         return value
+
+    # @property
+    # def modifier(self):
+    #     return self._modifier or None
+
+    # @modifier.setter
+    # def modifier(self, value):
+        self._modifier = value if value is not None else ''
+
+    # @hybrid_property
+    # def modifier(self):
+    #     return self._modifier or None
+
+    # @modifier.expression
+    # def modifier(self):
+    #     return func.or_(self._modifier, None)
+
+    # @modifier.setter
+    # def modifier(self, value):
+    #     self._modifier = value or ''
 
     def asdict(self):
         attrs = (
@@ -475,12 +495,12 @@ class Movie(sautils.Base):
 
     # SELECTION_MODEL = MovieSelection
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, modifier='', **kwargs):
         attrs = (
             'title',
         )
         _init_check_required(kwargs, attrs)
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, modifier=modifier, **kwargs)
 
     def __eq__(self, other):
         attrs = (
@@ -591,7 +611,7 @@ def _lt_from_attrs(a, b, attrs):
 
 
 def _asdict_from_attrs(x, attrs):
-    return {attr: getattr(x, attr) for attr in attrs}
+    return {attr: getattr(x, attr, None) for attr in attrs}
 
 
 def _entity_getter(x):

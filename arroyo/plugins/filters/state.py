@@ -19,6 +19,7 @@
 
 
 from arroyo import kit
+from arroyo.helpers import database
 
 
 class StateFilter(kit.FilterExtension):
@@ -32,8 +33,9 @@ class StateFilter(kit.FilterExtension):
         if not source.entity:
             return False
 
-        db_obj = self.shell.db.get_object(source.entity)
-        if not db_obj:
+        try:
+            db_obj = self.shell.db.get_object(source.entity)
+        except database.NoResultsFoundError:
             return True
 
         import ipdb; ipdb.set_trace(); pass

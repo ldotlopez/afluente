@@ -23,6 +23,7 @@ import traceback
 import sys
 
 
+import aiohttp
 import appkit
 from appkit.libs import urilib
 
@@ -275,15 +276,15 @@ class Scanner:
             result = yield from origin.provider.fetch(uri)
 
         except (asyncio.CancelledError,
-                asyncio.TimeoutError) as e:
-                # aiohttp.errors.ClientOSError,
-                # aiohttp.errors.ClientResponseError,
-                # aiohttp.errors.ServerDisconnectedError) as e:
-            msg = "Error fetching «{uri}»: {msg}"
-            msg = msg.format(
+                asyncio.TimeoutError,
+                aiohttp.client_exceptions.ClientOSError,
+                aiohttp.client_exceptions.ClientResponseError,
+                aiohttp.client_exceptions.ServerDisconnectedError) as e:
+            err = "Error fetching «{uri}»: {err}"
+            err = err.format(
                 uri=uri, type=e.__class__.__name__,
-                msg=str(e) or 'no reason')
-            self.logger.error(msg)
+                err=str(e) or 'no reason')
+            self.logger.error(err)
             result = e
 
         except Exception as e:

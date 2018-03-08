@@ -27,6 +27,10 @@ from appkit.db import sqlalchemyutils as sautils
 from arroyo import kit
 
 
+class NoResultsFoundError(Exception):
+    pass
+
+
 class MultipleResultsFoundError(Exception):
     pass
 
@@ -35,51 +39,49 @@ class Database:
     def __init__(self, session):
         self.session = session
 
-    def save(self, *objs):
-        import ipdb; ipdb.set_trace(); pass
-        return
-
-        ret = []
-
-        for o in objs:
-            if o.id:
-                ret.append(o)
-                continue
-
-            o2 = self.get_object(o)
-            if o2:
-                ret.append(o2)
-                continue
-
-            self.session.add(o)
-            ret.append(o)
-
+    @contextlib.contextmanager
+    def transaction(self):
+        yield self
         self.session.commit()
 
-        if len(ret) == 1:
-            return ret[0]
-        else:
-            return ret
-
-    def get_object(self, o):
+    def get(self, obj):
         # Keep attrs in this method in sync with
         # models.py Unique fields
-
         attrs = None
 
-        if isinstance(o, kit.Movie):
+        if isinstance(obj, kit.Movie):
             attrs = ('title', 'modifier')
-        elif isinstance(o, kit.Episode):
+        elif isinstance(obj, kit.Episode):
             attrs = ('series', 'modifier', 'season', 'number')
-        elif isinstance(o, kit.Source):
+        elif isinstance(obj, kit.Source):
             attrs = ('uri',)
         else:
-            raise NotImplemented(o)
+            raise NotImplemented(obj)
 
-        params = {attr: getattr(o, attr) for attr in attrs}
+        params = {attr: getattr(obj, attr) for attr in attrs}
+        db_obj = sautils.get(self.session, obj.__class__, **params)
 
-        x = sautils.get(self.session, o.__class__, **params)
-        if isinstance(x, list):
-            raise MultipleResultsFoundError(o)
+        if db_obj is None:
+            raise NoResultsFoundError(obj)
 
-        return x
+        if isinstance(db_obj, list):
+            raise MultipleResultsFoundError(obj)
+
+        return db_obj
+
+    def merge(self, obj):
+        try:
+            return self.get(obj)
+        except NoResultsFoundError:
+            pass
+
+        # Deep-first merging
+        if isinstance(obj, kit.Source) and obj.entity:
+            entity = self.merge(obj.entity)
+            entity.sources.append(obj)
+
+        self.session.add(obj)
+        return obj
+
+    def merge_all(self, objs):
+        return [self.merge(obj) for obj in objs]
