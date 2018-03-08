@@ -36,12 +36,30 @@ class Database:
         self.session = session
 
     def save(self, *objs):
-        err = "Smart merger must be implemented"
-        raise NotImplementedError(err)
+        import ipdb; ipdb.set_trace(); pass
+        return
+
+        ret = []
+
         for o in objs:
+            if o.id:
+                ret.append(o)
+                continue
+
+            o2 = self.get_object(o)
+            if o2:
+                ret.append(o2)
+                continue
+
             self.session.add(o)
+            ret.append(o)
 
         self.session.commit()
+
+        if len(ret) == 1:
+            return ret[0]
+        else:
+            return ret
 
     def get_object(self, o):
         # Keep attrs in this method in sync with
