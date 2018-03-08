@@ -34,7 +34,7 @@ class StateFilter(kit.FilterExtension):
             return False
 
         try:
-            db_obj = self.shell.db.get_object(source.entity)
+            entity = self.shell.db.get(source.entity)
         except database.NoResultsFoundError:
             return True
 

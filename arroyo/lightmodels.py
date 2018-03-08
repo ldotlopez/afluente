@@ -369,7 +369,6 @@ class Episode(sautils.Base):
     modifier = Column(String, nullable=False, default='')
     season = Column(Integer, nullable=False)
     number = Column(Integer, nullable=False)
-    test = Column(String, nullable=True)
 
     # SELECTION_MODEL = EpisodeSelection
 

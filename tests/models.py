@@ -106,13 +106,11 @@ class TestModels(unittest.TestCase):
 
     def test_merge_with_preexistent_entity(self):
         s1 = source('Foo - 1x01.TeamA.mkv')
-        s1.entity.test = 'A'
         self.sess.add(s1)
         self.sess.commit()
 
         with self.db.transaction():
             s1_ = source('Foo - 1x01.TeamB.mkv')
-            s1_.entity.test = 'B'
             s1_ = self.db.merge(s1_)
 
         self.assertTrue(s1.entity is s1_.entity)
