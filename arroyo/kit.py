@@ -39,7 +39,6 @@ from arroyo.models import (
     Episode,
     Movie,
     Source,
-    SourceTag,
     Variable
 )
 
@@ -65,7 +64,7 @@ class LoggerFormatter(quicklogging.DefaultFormatter):
         'CRITICAL': '!!!',
         'ERROR': 'ERR',
         'WARNING': 'WRN',
-        'INFO': 'INF',
+        'INFO': 'NFO',
         'DEBUG': 'DBG'
     }
 

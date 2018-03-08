@@ -132,7 +132,7 @@ class TorrentAPI(kit.ProviderExtension):
             return {
                 'name': e.get('title') or e.get('filename'),
                 'uri': e['download'],
-                'created': self.parse_created(e.get('pubdate', None)),
+                'timestamp': self.parse_timestamp(e.get('pubdate', None)),
                 'seeds': e.get('seeders', None),
                 'leechers': e.get('leechers', None),
                 'size': e.get('size', None),
@@ -191,7 +191,7 @@ class TorrentAPI(kit.ProviderExtension):
 
         return None
 
-    def parse_created(self, created):
+    def parse_timestamp(self, timestamp):
         """
         created: '2017-09-06 14:50:59 +0000'
 
@@ -200,17 +200,17 @@ class TorrentAPI(kit.ProviderExtension):
 
         Good boy torrentapi, good boy.
         """
-        if not created:
+        if not timestamp:
             return None
 
-        created, tz = created[0:19], created[-5:]
+        timestamp, tz = timestamp[0:19], timestamp[-5:]
         if tz != '+0000':
             msg = "Unexpected tz: {tz}"
             msg = msg.format(tz=tz)
             self.logger.warning(msg)
             return None
 
-        dt = datetime.strptime(created, '%Y-%m-%d %H:%M:%S')
+        dt = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
         dt = dt - self._tz_diff
 
         return int(time.mktime(datetime.timetuple(dt)))

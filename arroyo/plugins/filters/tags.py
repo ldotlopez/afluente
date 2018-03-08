@@ -49,7 +49,7 @@ class TagFilters(kit.FilterExtension):
 
     def _apply_set_match(self, key, user_value, src):
         try:
-            tag_value = src.tags_map[key]
+            tag_value = src.tags[key]
         except KeyError:
             return False
 
@@ -63,14 +63,14 @@ class TagFilters(kit.FilterExtension):
 
     def _apply_quality(self, quality, src):
         if 'video.screen-size' in src.tags:
-            tag_value = src.tags_map['video.screen-size']
+            tag_value = src.tags['video.screen-size']
         else:
             tag_value = '480p'
 
         return quality == tag_value
 
     def _apply_format(self, format, src):
-        tag = src.tags_map.get('video.format')
+        tag = src.tags.get('video.format')
         if not tag:
             return False
 

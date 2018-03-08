@@ -213,6 +213,7 @@ class Arroyo(kit.Application):
 
                 src.entity = entity
                 src.tags = tags
+
                 yield src
 
         try:

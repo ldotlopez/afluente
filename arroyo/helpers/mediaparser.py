@@ -365,9 +365,6 @@ class MediaParser:
         tags = {}
         transfer_items(guess_data, tags,
                        META_FIELD_TRANSLATIONS)
-        tags = [kit.SourceTag(key=k, value=v)
-                for (k, v) in
-                tags.items()]
 
         return entity, tags, guess_data
 

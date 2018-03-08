@@ -168,7 +168,7 @@ class Eztv(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
         # except humanfriendly.InvalidSize as e:
         #     raise ValueError('Invalid size') from e
 
-    def parse_created(cls, node):
+    def parse_timestamp(cls, node):
         _table_mults = {
             's': 1,
             'm': 60,
@@ -212,15 +212,15 @@ class Eztv(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
             size = None
 
         try:
-            created = self.parse_created(row)
+            timestamp = self.parse_timestamp(row)
         except ValueError:
-            created = None
+            timestamp = None
 
         return {
             'name': name,
             'uri': magnet,
             'size': size,
-            'created': created,
+            'timestamp': timestamp,
             'language': 'eng-us',
             'type': 'episode'
         }
