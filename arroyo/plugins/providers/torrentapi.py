@@ -24,7 +24,7 @@
 # torrentapi json_extended format:
 #
 # {'category': 'TV Episodes',
-#  'download': 'magnet:?xt=urn:btih:000000000000000000000000000000000000000000000000&dn=Westworld.S01E10.iNTERNAL.HDTV.x264-TURBO%5Brartv%5D&tr=http%3A%2F%2Ftracker.trackerfix.com%3A80%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2710&tr=udp%3A%2F%2F9.rarbg.to%3A2710&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce',  # nopep8
+#  'download': 'magnet:?xt=urn:btih:000000000000000000000000000000000000000000000000&dn=Westworld.S01E10.iNTERNAL.HDTV.x264-TURBO%5Brartv%5D&tr=http%3A%2F%2Ftracker.trackerfix.com%3A80%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2710&tr=udp%3A%2F%2F9.rarbg.to%3A2710&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce',
 #  'episode_info': {'airdate': '2016-12-04',
 #                   'epnum': '10',
 #                   'imdb': 'tt0475784',
@@ -33,7 +33,7 @@
 #                   'title': 'The Bicameral Mind',
 #                   'tvdb': '296762',
 #                   'tvrage': '37537'},
-#  'info_page': 'https://torrentapi.org/redirect_to_info.php?token=xxxxxxxxxx&p=x_x_x_x_x_x_x__xxxxxxxxxx',  # nopep8
+#  'info_page': 'https://torrentapi.org/redirect_to_info.php?token=xxxxxxxxxx&p=x_x_x_x_x_x_x__xxxxxxxxxx',
 #  'leechers': 6,
 #  'pubdate': '2016-12-06 10:13:24 +0000',
 #  'ranked': 1,
@@ -59,37 +59,47 @@ from arroyo import kit
 class TorrentAPI(kit.ProviderExtension):
     __extension_name__ = 'torrentapi'
 
-    # URL structure:
-    # https://torrentapi.org/apidocs_v2.txt
-    # https://torrentapi.org/pubapi_v2.php?get_token=get_token
-
     DEFAULT_URI = r'http://torrentapi.org/pubapi_v2.php?mode=list'
 
     URI_PATTERNS = [
         r'^http(s)?://([^.]+.)?torrentapi\.org/pubapi_v2.php\?'
     ]
 
-    TOKEN_URL = 'http://torrentapi.org/pubapi_v2.php?get_token=get_token'
-    SEARCH_URL = r'http://torrentapi.org/pubapi_v2.php?mode=search'
+    TOKEN_URL = 'http://torrentapi.org/pubapi_v2.php?get_token=get_token&app_id=arroyo'
+    SEARCH_URL = r'http://torrentapi.org/pubapi_v2.php?mode=search&app_id=arroyo'
 
     CATEGORY_MAP = {
-        'episode': 'tv',
-        'movie': 'movies'
+        'episode': '18;41;49',
+        'movie': '14;48;17;44;45;47;50;51;52;42;46'
     }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.logger = self.shell.logger.getChild('provider.torrentapi')
+        self.last_request = None
         self.token = None
         self.token_ts = 0
         self.token_last_use = 0
         self._tz_diff = datetime.utcnow() - datetime.now()
 
     @asyncio.coroutine
+    def throttle(self):
+        now = time.time()
+
+        if self.last_request is None:
+            self.last_request = now
+            return
+
+        diff = self.last_request - now
+        if diff < 2:
+            yield from asyncio.sleep(2 - diff)
+
+        self.last_request = time.time()
+
+    @asyncio.coroutine
     def fetch(self, uri):
         yield from self.refresh_token()
-
         uri = urilib.alter_query_params(
             uri,
             dict(
@@ -99,33 +109,27 @@ class TorrentAPI(kit.ProviderExtension):
                 token=self.token)
         )
 
+        yield from self.throttle()
         return (yield from super().fetch(uri))
 
     @asyncio.coroutine
     def refresh_token(self):
-        # Refresh token if it's older than 15M
-        if time.time() - self.token_ts >= 15*60:
-            conn = aiohttp.TCPConnector(verify_ssl=False)
-            client = aiohttp.ClientSession(connector=conn)
-            resp = yield from client.get(self.TOKEN_URL)
-            buff = yield from resp.content.read()
-            yield from resp.release()
-            yield from client.close()
-
-            self.token = json.loads(buff.decode('utf-8'))['token']
-            self.token_ts = time.time()
-            self.token_last_use = None
+        if time.time() - self.token_ts < 15*60:
             return
 
-        # No need to throttle
-        if self.token_last_use is None:
-            return
+        conn = aiohttp.TCPConnector(verify_ssl=False)
+        client = aiohttp.ClientSession(connector=conn)
 
-        # throttle
-        now = time.time()
-        since_last_use = self.token_last_use - now
-        if since_last_use < 2:
-            yield from asyncio.sleep(2 - since_last_use)
+        yield from self.throttle()
+        resp = yield from client.get(self.TOKEN_URL)
+        buff = yield from resp.content.read()
+
+        yield from resp.release()
+        yield from client.close()
+
+        self.token = json.loads(buff.decode('utf-8'))['token']
+        self.token_ts = time.time()
+        self.token_last_use = None
 
     def parse(self, buff):
         def convert_data(e):
@@ -139,10 +143,19 @@ class TorrentAPI(kit.ProviderExtension):
                 'type': self.parse_category(e['category'])
             }
 
-        data = json.loads(buff.decode('utf-8'))
+        try:
+            data = json.loads(buff.decode('utf-8'))
+        except json.decoder.JSONDecodeError as e:
+            msg = "Error parsing json response: {e}"
+            msg = msg.format(e=str(e))
+            self.logger.error(msg)
+            return []
+
         try:
             psrcs = data['torrent_results']
         except KeyError:
+            msg = "Invalid response, missing torrent_results key"
+            self.logger.error(msg)
             return []
 
         ret = [convert_data(x) for x in psrcs]
@@ -193,7 +206,7 @@ class TorrentAPI(kit.ProviderExtension):
 
     def parse_timestamp(self, timestamp):
         """
-        created: '2017-09-06 14:50:59 +0000'
+        timestamp: '2017-09-06 14:50:59 +0000'
 
         From API docs:
         > All api times are returned in UTC.

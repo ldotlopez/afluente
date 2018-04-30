@@ -44,6 +44,15 @@ class Database:
         yield self
         self.session.commit()
 
+    def add(self, obj):
+        self.session.add(obj)
+
+    def add_all(self, objs):
+        self.session.add_all([objs])
+
+    def delete(self, obj):
+        self.session.delete(obj)
+
     def get(self, obj):
         # Keep attrs in this method in sync with
         # models.py Unique fields
@@ -84,3 +93,6 @@ class Database:
 
     def merge_all(self, objs):
         return [self.merge(obj) for obj in objs]
+
+    def list_downloads(self):
+        return self.session.query(kit.Download).all()

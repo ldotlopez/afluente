@@ -1,9 +1,10 @@
 import unittest
 
 
-from testutils import mock_source, analyze
+from testutils import source
 
 
+from appkit import Null
 from arroyo import kit
 from arroyo.helpers import filterengine
 from arroyo.plugins.filters.tags import TagFilters
@@ -32,6 +33,10 @@ class AssertsMixin:
     pass
 
 
+def get_filter(type):
+    return type(Null, logger=Null)
+
+
 class QueryTest(AssertsMixin, unittest.TestCase):
     def test_basic_query(self):
         q = kit.Query(name_glob='*foo*')
@@ -56,18 +61,18 @@ class FilterEngineTest(unittest.TestCase):
         self.available_filters = {}
 
     def get_engine(self, filters=None):
-        filters = [TypeFilter(None)] + (filters or [])
+        filters = [get_filter(TypeFilter)] + (filters or [])
         return filterengine.Engine(filters=filters)
 
     def test_get_for_handler(self):
-        foo = FooFilter(None)
+        foo = get_filter(FooFilter)
         fe = self.get_engine(filters=[foo])
         f = fe.get_for_handler('foo')
 
         self.assertEqual(foo, f)
 
     def test_get_for_multi_handler(self):
-        bar = BarFilter(None)
+        bar = get_filter(BarFilter)
         fe = self.get_engine(filters=[bar])
         f = fe.get_for_handler('x')
 
@@ -79,7 +84,7 @@ class FilterEngineTest(unittest.TestCase):
             fe.get_for_handler('missing')
 
     def test_get_for_query(self):
-        foo = FooFilter(None)
+        foo = get_filter(FooFilter)
         fe = self.get_engine(filters=[foo])
 
         query = kit.Query(foo=1)
@@ -90,8 +95,8 @@ class FilterEngineTest(unittest.TestCase):
         self.assertEqual(missing, [])
 
     def test_get_missing_query(self):
-        foo = FooFilter(None)
-        bar = BarFilter(None)
+        foo = get_filter(FooFilter)
+        bar = get_filter(BarFilter)
         query = kit.Query(x=1, missing=0)
 
         fe = self.get_engine(filters=[foo, bar])
@@ -103,23 +108,22 @@ class FilterEngineTest(unittest.TestCase):
 
     def test_basic_filtering(self):
         results = [
-            analyze(mock_source('Series A - 1x01')),
-            analyze(mock_source('Series B - 3x03'))
+            source('Series A - 1x01'),
+            source('Series B - 3x03')
         ]
         query = kit.Query(type='x')
 
-        fe = filterengine.Engine(filters=[TypeFilter(None)])
+        fe = filterengine.Engine(filters=[get_filter(TypeFilter)])
 
         results = fe.filter(results, query)
-
-        print(results)
+        raise NotImplementedError()
 
 
 class TestQualityFilter(unittest.TestCase):
     def assertResults(self, filter_class, key, value, names, expected_indexes):
-        srcs = [analyze(mock_source(x)) for x in names]
+        srcs = [source(x) for x in names]
 
-        f = filter_class(None)
+        f = filter_class(Null, logger=Null)
         res = f.apply(key, value, srcs)
         self.assertEqual(
             list(res),

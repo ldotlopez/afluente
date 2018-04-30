@@ -48,9 +48,8 @@ from appkit import utils
 from arroyo import kit
 
 
-SAV_FILE = (
-    pathlib.Path(utils.user_path(utils.UserPathType.CACHE)) /
-    'last-search.dat')
+class ArgumentsError(Exception):
+    pass
 
 
 class DownloadConsoleCommand(kit.CommandExtension):
@@ -58,15 +57,33 @@ class DownloadConsoleCommand(kit.CommandExtension):
 
     PARAMETERS = (
         kit.Parameter(
+            'list',
+            action='store_true',
+            help="Show current downloads"),
+
+        kit.Parameter(
+            'cancel',
+            help="Cancel a download"),
+
+        kit.Parameter(
+            'archive',
+            help="Cancel a download"),
+
+        kit.Parameter(
             'from-config',
             action='store_true',
             help=("Download sources from queries defined in the configuration "
                   "file")),
 
         kit.Parameter(
-            'replay',
+            'manual',
             action='store_true',
-            help=("Show last search results")),
+            help=("Manualy select downloads")),
+
+        kit.Parameter(
+            'auto',
+            action='store_true',
+            help=("Auto select downloads")),
 
         kit.Parameter(
             'filter',
@@ -84,45 +101,62 @@ class DownloadConsoleCommand(kit.CommandExtension):
             help='keywords')
     )
 
-    def main(self, replay=False, filters=None, keywords=None,
-             from_config=True):
-        if replay:
-            with SAV_FILE.open('rb') as fh:
-                results = pickle.load(fh)
-                self.display_results(results)
-            return
+    def main(self,
+             list=False,
+             cancel=None, archive=None,
+             filters=None, keywords=None, from_config=False,
+             manual=False, auto=False):
 
-        elif filters:
-            query = kit.Query(**filters)
-        elif keywords:
-            query = kit.Query(' '.join(keywords))
-        elif from_config:
-            raise NotImplemented()
+        if list:
+            for dl in self.shell.get_downloads():
+                print(dl.id, dl)
+
+        elif cancel:
+            self.shell.cancel(cancel)
+
+        elif archive:
+            self.shell.archive(archive)
+
+        elif filters or keywords or from_config:
+            if (manual and auto):
+                errmsg = "--auto and --manual are mutually exclusive"
+                raise ArgumentsError(errmsg)
+
+            if not (manual or auto):
+                errmsg = "One of --auto or --manual must be used"
+                raise ArgumentsError(errmsg)
+
+            if filters:
+                query = kit.Query(**filters)
+            elif keywords:
+                query = kit.Query(' '.join(keywords))
+            elif from_config:
+                raise NotImplementedError()
+            else:
+                raise NotImplementedError()
+
+            results = self.shell.search(query)
+            if not results:
+                err = "No results found"
+                self.shell.logger.error(err)
+                return
+
+            results = self.shell.filter(results, query)
+            if not results:
+                err = "No matching results found"
+                self.shell.logger.error(err)
+                return
+
+            results = self.shell.group(results)
+
+            self.display_results(results)
+            for (entity, options) in results:
+                selected = self.shell.select(options, query)
+                print(selected)
+                self.shell.download(selected)
+
         else:
-            raise NotImplemented()
-
-        results = self.shell.search(query)
-        if not results:
-            err = "No results found"
-            self.shell.logger.error(err)
-            return
-
-        results = self.shell.filter(results, query)
-        if not results:
-            err = "No matching results found"
-            self.shell.logger.error(err)
-            return
-
-        results = self.shell.group(results)
-
-        with SAV_FILE.open('wb+') as fh:
-            pickle.dump(results, fh)
-
-        self.display_results(results)
-        for (entity, options) in results:
-            selected = self.shell.select(options, query)
-            print(selected)
-            self.shell.download(selected)
+            raise NotImplementedError()
 
     def display_results(self, results):
         i = 1

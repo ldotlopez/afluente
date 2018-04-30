@@ -40,11 +40,10 @@ class MockDownloader(kit.DownloaderExtension):
         self.variables = shell.variables
 
     def add(self, source, **kwargs):
-        raise NotImplementedError()
         sid = id_(source)
         k = key(sid)
         v = {
-            'state': models.State.INITIALIZING,
+            'state': kit.DownloadState.INITIALIZING,
             'info': {
                 'files': None,
                 'eta': None,

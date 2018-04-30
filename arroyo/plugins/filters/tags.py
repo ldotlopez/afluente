@@ -74,7 +74,7 @@ class TagFilters(kit.FilterExtension):
         if not tag:
             return False
 
-        return format == tag.value.lower()
+        return format == tag.lower()
 
     def apply(self, key, value, it):
         m = {

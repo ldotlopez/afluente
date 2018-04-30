@@ -3,12 +3,8 @@ import unittest
 from appkit.db import sqlalchemyutils as sautils
 from arroyo import kit
 from arroyo.helpers import database
-import testutils
-from sqlalchemy import inspect
 
-
-def source(name):
-    return testutils.analyze(testutils.mock_source(name))
+from testutils import source
 
 
 class TestModels(unittest.TestCase):
@@ -28,7 +24,6 @@ class TestModels(unittest.TestCase):
         ep1 = kit.Episode(series='foo', season=1, number=1)
         self.assertTrue(ep1.id is None)
         self.assertEqual(ep1.modifier,  '')
-
 
     def test_db_retrieved_episode_empty_modifier(self):
         """
@@ -70,7 +65,8 @@ class TestModels(unittest.TestCase):
     def test_merge(self):
         """
         Preinsert two sources sharing the same entity
-        Create a similar source and try to merge with one of the two preexistent
+        Create a similar source and try to merge with one of the two
+        preexistent
         """
         s1 = source('Foo - 1x01.TeamA.mkv')
         s2 = source('Foo - 1x01.TeamB.mkv')
@@ -90,7 +86,8 @@ class TestModels(unittest.TestCase):
     def test_merge_with_preexistent(self):
         """
         Preinsert two sources sharing the same entity
-        Create a similar source and try to merge with one of the two preexistent
+        Create a similar source and try to merge with one of the two
+        preexistent
         """
         s1 = source('Foo - 1x01.TeamA.mkv')
         s2 = source('Foo - 1x01.TeamB.mkv')

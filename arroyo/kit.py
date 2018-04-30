@@ -36,6 +36,7 @@ from appkit.blocks import (
     quicklogging
 )
 from arroyo.models import (
+    Download,
     Episode,
     Movie,
     Source,
@@ -78,16 +79,56 @@ class Extension(application.Extension):
     Our extensions class adds a built-in logger
     """
     def __init__(self, shell, *args, **kwargs):
-        logger = kwargs.pop('logger')
+        # logger = kwargs.pop('logger')
         super().__init__(shell, *args, **kwargs)
-        self.logger = logger.getChild(self.__extension_name__)
+        # self.logger = logger.getChild(self.__extension_name__)
 
         # FIXME: This is a hack
         # Parent logger can change its level to a lower level in the future.
         # Since level doesnt propage to children (even with NOTSET level) we
         # get the future level from settings
         # NOTE: this is not dynamic.
-        self.logger.setLevel(shell.settings.get(SettingsKeys.LOG_LEVEL))
+        # self.logger.setLevel(shell.settings.get(SettingsKeys.LOG_LEVEL))
+
+
+class DownloaderExtension(Extension):
+    """Extension point for downloaders"""
+
+    def add(self, source):
+        """Adds source to download.
+
+        Must return True on successful or raise an Exception on failure
+        """
+        raise NotImplementedError()
+
+    def cancel(self, foreign_id):
+        """Cancels foreign ID and deletes any possible file
+
+        Must return True on successful or raise an Exception on failure
+        """
+        raise NotImplementedError()
+
+    def archive(self, foreign_id):
+        """Archives source to download, just remove it from downloader keeping
+        any possible files
+
+        Must return True on successful or raise an Exception on failure
+        """
+        raise NotImplementedError()
+
+    def list(self):
+        raise NotImplementedError()
+
+    def get_state(self, foreign_id):
+        raise NotImplementedError()
+
+    def get_info(self, foreign_id):
+        raise NotImplementedError()
+
+    def id_for_source(self, source):
+        """For tests. Returns an acceptable (even simulated or random) local ID
+        for this source"""
+        raise NotImplementedError()
 
 
 class FilterExtension(Extension):
@@ -192,13 +233,6 @@ class BS4ParserProviderExtensionMixin:
     @abc.abstractmethod
     def parse_soup(self, soup):
         raise NotImplementedError()
-
-
-class IncompatibleQueryError(Exception):
-    """
-    Raised by Providers if cant generate an URI for a query
-    """
-    pass
 
 
 class DownloaderExtension(Extension):
@@ -384,10 +418,6 @@ class Query:
         )
 
 
-class QueryConversionError(Exception):
-    pass
-
-
 class ConsoleApplicationMixin(console.ConsoleApplicationMixin):
     """
     Reconfigure ConsoleApplicationMixin to use our CommandExtension
@@ -439,9 +469,19 @@ class Application(ConsoleApplicationMixin, application.Application):
     def main(self):
         print('arroyo is up and running')
 
-    def get_extension(self, extension_point, name, *args, **kwargs):
-        kwargs['logger'] = self.logger
-        return super().get_extension(extension_point, name, *args, **kwargs)
+    # def get_extension(self, extension_point, name, *args, **kwargs):
+    #     kwargs['logger'] = self.logger.getChild(name)
+
+    #     # FIXME: This is a hack
+    #     # Parent logger can change its level to a lower level in the future.
+    #     # Since level doesnt propage to children (even with NOTSET level) we
+    #     # get the future level from settings
+    #     # NOTE: this is not dynamic.
+    #     self.logger.setLevel(self.get_shell().settings.get(SettingsKeys.LOG_LEVEL))
+    #     try:
+    #         return super().get_extension(extension_point, name, *args, **kwargs)
+    #     except Exception as e:
+    #         import ipdb; ipdb.set_trace(); pass
 
 
 class ArroyoScanCache(cache.DiskCache):
@@ -465,6 +505,28 @@ class Caches:
     SCAN = 'scan'
     NETWORK = 'network'
     FILTER = 'filter'
+
+
+class DownloadState:
+    INITIALIZING = 1
+    QUEUED = 2
+    PAUSED = 3
+    DOWNLOADING = 4
+    SHARING = 5
+    DONE = 6
+    ARCHIVED = 7
+
+
+DOWNLOAD_STATE_SYMBOL = {
+    # State.NONE: ' ',
+    DownloadState.INITIALIZING: '⋯',
+    DownloadState.QUEUED: '⋯',
+    DownloadState.PAUSED: '‖',
+    DownloadState.DOWNLOADING: '↓',
+    DownloadState.SHARING: '⇅',
+    DownloadState.DONE: '✓',
+    DownloadState.ARCHIVED: '▣'
+}
 
 
 class SettingsKeys:

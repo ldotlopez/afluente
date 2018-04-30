@@ -20,15 +20,21 @@
 
 import asyncio
 import traceback
+import socket
 import sys
+from urllib import parse
 
 
 import aiohttp
 import appkit
+from appkit import utils
 from appkit.libs import urilib
 
 
-from arroyo import kit
+from arroyo import (
+    bittorrentlib,
+    kit
+)
 
 
 class Origin:
@@ -114,8 +120,8 @@ class Scanner:
             try:
                 uri = ext.get_query_uri(query)
             except kit.IncompatibleQueryError as e:
-                err = "Incompatible provider '{provider}'"
-                err = err.format(provider=name)
+                err = "Provider '{name}' is not compatible"
+                err = err.format(name=name)
 
                 excstr = str(e)
                 if excstr:
@@ -132,10 +138,11 @@ class Scanner:
                 self.logger.critical(err)
                 continue
 
-            msg = "Compatible provider   '{name}' ({uri})"
+            exts_and_uris.append((ext, uri))
+
+            msg = "Provider '{name}' is compatible. URI: {uri}"
             msg = msg.format(name=name, uri=uri)
             self.logger.info(msg)
-            exts_and_uris.append((ext, uri))
 
         if not exts_and_uris:
             msg = "No compatible origins found for {query!r}"
@@ -216,6 +223,7 @@ class Scanner:
                 self.logger.warning(msg)
                 continue
 
+            res = self._normalize_source_data(origin, *res)
             data.extend([(origin, uri, x) for x in res])
 
             msg = "{n} sources found at {uri}"
@@ -275,7 +283,8 @@ class Scanner:
         try:
             result = yield from origin.provider.fetch(uri)
 
-        except (asyncio.CancelledError,
+        except (socket.gaierror,
+                asyncio.CancelledError,
                 asyncio.TimeoutError,
                 aiohttp.client_exceptions.ClientOSError,
                 aiohttp.client_exceptions.ClientResponseError,
@@ -301,3 +310,127 @@ class Scanner:
             self.logger.error(msg)
 
         return (origin, uri, result)
+
+    def _normalize_source_data(self, origin, *psrcs):
+        """ Normalize input data for given origin.
+
+        Args:
+          origin - An Origin object. All psrcs should be the result of this
+                   origin.
+          psrcs - List of psources (raw dicts) to be normalized.
+
+        Returns:
+          A list of normalized psources (dicts).
+        """
+
+        required_keys = set([
+            'name',
+            'provider',
+            'uri',
+        ])
+        allowed_keys = required_keys.union(set([
+            'language',
+            'leechers',
+            'meta',
+            'seeds',
+            'size',
+            'timestamp',
+            'type'
+        ]))
+
+        ret = []
+        now = utils.now_timestamp()
+
+        for psrc in psrcs:
+            if not isinstance(psrc, dict):
+                msg = "Origin «{name}» emits invalid data type: {datatype}"
+                msg = msg.format(name=origin.provider.__extension_name__,
+                                 datatype=str(type(psrc)))
+                self.logger.error(msg)
+                continue
+
+            # Insert provider name
+            psrc['provider'] = origin.provider.__extension_name__
+
+            # Apply overrides
+            psrc.update(origin.provider.overrides)
+
+            # Check required keys
+            missing_keys = required_keys - set(psrc.keys())
+            if missing_keys:
+                msg = ("Origin «{name}» doesn't provide the required "
+                       "following keys: {missing_keys}")
+                msg = msg.format(name=origin.provider_name,
+                                 missing_keys=missing_keys)
+                self.logger.error(msg)
+                continue
+
+            # Only those keys are allowed
+            forbiden_keys = [k for k in psrc if k not in allowed_keys]
+            if forbiden_keys:
+                msg = ("Origin «{name}» emits the following invalid "
+                       "properties for its sources: {forbiden_keys}")
+                msg = msg.format(name=psrc['provider'],
+                                 forbiden_keys=forbiden_keys)
+                self.logger.warning(msg)
+
+            psrc = {k: psrc.get(k, None) for k in allowed_keys}
+
+            # Check value types
+            checks = [
+                ('created', int),
+                ('leechers', int),
+                ('name', str),
+                ('seeds', int),
+                ('size', int),
+                ('permalink', str),
+                ('uri', str),
+            ]
+            for k, kt in checks:
+                if (psrc.get(k) is not None) and (not isinstance(psrc[k], kt)):
+                    try:
+                        psrc[k] = kt(psrc[k])
+                    except (TypeError, ValueError):
+                        msg = ("Origin «{name}» emits invalid «{key}» value. "
+                               "Expected {expectedtype} (or compatible), got "
+                               "{currtype}")
+                        msg = msg.format(
+                            name=origin.provider.__extension_name__,
+                            key=k,
+                            expectedtype=kt,
+                            currtype=str(type(psrc[k])))
+                        self.logger.error(msg)
+                        continue
+
+            psrc['meta'] = psrc.get('meta', {})
+            if psrc['meta']:
+                if not all([isinstance(k, str) and isinstance(v, str)
+                            for (k, v) in psrc['meta'].items()]):
+                        msg = ("Origin «{name}» emits invalid «meta» "
+                               "value. Expected dict(str->str)")
+                        msg = msg.format(name=self.provider)
+                        self.logger.warning(msg)
+                        psrc['meta'] = {}
+
+            # Calculate URN from uri. If not found its a lazy source
+            # IMPORTANT: URN is **lowercased** and **sha1-encoded**
+            # try:
+            #     qs = parse.urlparse(psrc['uri']).query
+            #     urn = parse.parse_qs(qs)['xt'][-1]
+            #     normalized_urn = bittorrentlib.normalize_urn(urn)
+
+            #     # FIXME: This is a hack, fix uritools.alter_query_params
+            #     psrc['uri'] = psrc['uri'].replace(
+            #         'xt=' + urn, 'xt=' + normalized_urn)
+            #     psrc['urn'] = normalized_urn
+
+            # except KeyError:
+            #     pass
+
+            # Fix created
+            psrc['timestamp'] = psrc.get('timestamp', None) or now
+
+            # Append to ret value
+            ret.append(psrc)
+
+        return ret

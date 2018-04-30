@@ -31,7 +31,8 @@ from appkit import (
 from appkit.blocks import (
     cache,
     httpclient,
-    quicklogging
+    quicklogging,
+    store
 )
 from appkit.db import sqlalchemyutils as sautils
 
@@ -39,7 +40,7 @@ from appkit.db import sqlalchemyutils as sautils
 from arroyo import kit
 from arroyo.helpers import (
     database,
-    downloads,
+    downloads as downloads_helper,
     filterengine,
     mediaparser,
     scanner
@@ -65,7 +66,7 @@ class Arroyo(kit.Application):
 
     DEFAULT_PLUGINS = [
         'commands.download',
-        'commands.settings',
+        # 'commands.settings',
 
         'downloaders.mock',
 
@@ -90,23 +91,40 @@ class Arroyo(kit.Application):
             utils.user_path(utils.UserPathType.DATA, 'arroyo.db', create=True))
     }
 
-    def __init__(self):
+    DEFAULT_SETTINGS.update({
+        kit.SettingsKeys.PLUGINS_NS + plugin + '.enabled': True
+        for plugin in DEFAULT_PLUGINS
+    })
+
+    def __init__(self, settings=None):
+        store_ = store.Store()
+
+        if settings is None:
+            settings = self.DEFAULT_SETTINGS
+
+        for (key, value) in settings.items():
+            store_.set(key, value)
+
         super().__init__(
             name='arroyo',
-            logger=kit.QuickLogger(level=quicklogging.Level.WARNING))
+            logger=kit.QuickLogger(level=quicklogging.Level.WARNING),
+            settings=store_,
+        )
 
         # Open database connection
         db_uri = self.settings.get(kit.SettingsKeys.DB_URI)
+
         # Add check_same_thread=False to db_uri.
         # FIXME: This is a _hack_ required by the webui plugin.
         if '?' in db_uri:
             db_uri += '&check_same_thread=False'
         else:
             db_uri += '?check_same_thread=False'
-        self._db_sess = sautils.create_session(db_uri)
+
+        db_sess = sautils.create_session(db_uri)
 
         # Initialize app variables
-        self.variables = sautils.KeyValueManager(kit.Variable, self._db_sess)
+        self.variables = sautils.KeyValueManager(kit.Variable, db_sess)
 
         # Register extension points
         self.register_extension_point(kit.FilterExtension)
@@ -114,7 +132,7 @@ class Arroyo(kit.Application):
         self.register_extension_point(kit.DownloaderExtension)
 
         # Initialize database controller
-        self.db = database.Database(self._db_sess)
+        self.db = database.Database(db_sess)
 
         # app.register_extension_class(DownloadSyncCronTask)
         # app.register_extension_class(DownloadQueriesCronTask)
@@ -125,21 +143,23 @@ class Arroyo(kit.Application):
             kit.Caches.SCAN: cache.NullCache()
         }
 
-        # Initialize plugins
-        plugin_enabled_key_tmpl = (
-            kit.SettingsKeys.PLUGINS_NS + '{name}.enabled'
-        )
+        for category in self.settings.children(
+                kit.SettingsKeys.PLUGINS_NS[:-1]):
+            for plugin in self.settings.children(
+                    kit.SettingsKeys.PLUGINS_NS + category):
 
-        for plugin in self.DEFAULT_PLUGINS:
-            settings_key = plugin_enabled_key_tmpl.format(name=plugin)
+                key = '{plugins_ns}{category}.{plugin}.enabled'.format(
+                    plugins_ns=kit.SettingsKeys.PLUGINS_NS,
+                    category=category,
+                    plugin=plugin)
 
-            if self.settings.get(settings_key, True):
-                self.load_plugin(plugin)
+                if self.settings.get(key, True):
+                    self.load_plugin(category + '.' + plugin)
 
-            else:
-                msg = 'Plugin "{name}" disabled by config'
-                msg = msg.format(name=plugin)
-                self.logger.info(msg)
+                else:
+                    msg = 'Plugin "{name}" disabled by config'
+                    msg = msg.format(name=plugin)
+                    self.logger.info(msg)
 
     #
     # Own methods
@@ -148,7 +168,9 @@ class Arroyo(kit.Application):
     @property
     def downloads(self):
         downloader_plugin = self.settings.get(kit.SettingsKeys.DOWNLOADER)
-        return self.get_downloader(downloader_plugin)
+        return downloads_helper.Downloads(
+            plugin=self.get_downloader(downloader_plugin),
+            db=self.db)
 
     def get_providers(self):
         return [(name, self.get_provider(name))
@@ -304,8 +326,17 @@ class Arroyo(kit.Application):
         return options[0]
 
     def download(self, source):
-        self.db.save(source)
+        source = self.db.merge(source)
         self.downloads.add(source)
+
+    def get_downloads(self):
+        return self.downloads.list()
+
+    def cancel(self, id_):
+        return self.downloads.cancel(id_)
+
+    def archive(self, id_):
+        return self.downloads.archive(id_)
 
     @contextlib.contextmanager
     def get_async_http_client(self):

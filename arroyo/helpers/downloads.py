@@ -18,7 +18,11 @@
 # USA.
 
 
-from appkit import Null
+import appkit
+from arroyo import (
+    kit,
+    models
+)
 
 
 class DuplicatedDownloadError(Exception):
@@ -54,10 +58,16 @@ class ResolveLazySourceError(Exception):
 
 
 class Downloads:
-    def __init__(self, plugin, logger=None):
+    def __init__(self, db, plugin, logger=None):
+        # app.register_extension_point(Downloader)
+        # app.register_extension_class(DownloadSyncCronTask)
+        # app.register_extension_class(DownloadQueriesCronTask)
+        # app.signals.register('source-state-change')
+        self.db = db
         self.plugin = plugin
-        # self.app = app
-        self.logger = logger or Null
+        self.logger = logger or appkit.Null
+
+        self.plugin_name = plugin.__extension_name__
 
     def strip_plugin_prefix(self, s):
         assert s.startswith(self.plugin_name + ':')
@@ -67,26 +77,14 @@ class Downloads:
         assert not s.startswith(self.plugin_name + ':')
         return self.plugin_name + ':' + s
 
-    # @property
-    # def plugin(self):
-    #     return self.app.get_extension(Downloader, self.plugin_name)
-
     def sync(self):
-        raise NotImplementedError()
-        qs = self.app.db.session.query(models.Download)
+        qs = self.db.session.query(models.Download)
         qs = qs.filter(
             models.Download.foreign_id.startswith(self.plugin_name + ':'))
-        qs = qs.filter(models.Download.state != models.State.ARCHIVED)
+        qs = qs.filter(models.Download.state != kit.DownloadState.ARCHIVED)
         db_sources = [x.source for x in qs]
 
         plugin_ids = [self.add_plugin_prefix(x) for x in self.plugin.list()]
-
-        # Warn about unknow plugin IDs
-        # msg = "Unknow download detected in downloader plugin: {pid}"
-        # db_ids = [src.download.foreign_id for src in db_sources]
-        # for pid in set(plugin_ids) - set(db_ids):
-        #     msg_ = msg.format(pid=pid)
-        #     self.logger.warning(msg_)
 
         # Update state on db sources with info from plugin
         state_changes = []
@@ -101,23 +99,23 @@ class Downloads:
 
             else:
                 # src was removed from downloader plugin
-                if src.download.state >= models.State.SHARING:
-                    src.download.state = models.State.ARCHIVED
+                if src.download.state >= kit.DownloadState.SHARING:
+                    src.download.state = kit.DownloadState.ARCHIVED
                 else:
-                    if src.selected:
-                        self.app.db.session.delete(src.entity.selection)
-                        src.entity.selection = None
+                    # if src.selected:
+                    #     self.db.session.delete(src.entity.selection)
+                    #     src.entity.selection = None
 
-                    self.app.db.session.delete(src.download)
+                    self.db.session.delete(src.download)
                     src.download = None
 
                 state_changes.append(src)
 
-        self.app.db.session.commit()
+        self.db.session.commit()
 
         # Notify about state changes
-        for source in state_changes:
-            self.app.signals.send('source-state-change', source=source)
+        # for source in state_changes:
+        #     self.app.signals.send('source-state-change', source=source)
 
         # Return current downloads for convenience
         return [
@@ -135,13 +133,13 @@ class Downloads:
         foreign_id = '{name}:{fid}'.format(
             name=self.plugin_name, fid=foreign_id)
         source.download = models.Download(
-            foreign_id=foreign_id, state=models.State.INITIALIZING)
+            foreign_id=foreign_id, state=kit.DownloadState.INITIALIZING)
 
-        if source.entity and source.entity.selection is None:
-            selection = source.entity.SELECTION_MODEL(source=source)
-            source.entity.selection = selection
+        # if source.entity and source.entity.selection is None:
+        #     selection = source.entity.SELECTION_MODEL(source=source)
+        #     source.entity.selection = selection
 
-        self.app.db.session.commit()
+        self.db.session.commit()
 
     def list(self):
         return self.sync()
@@ -166,21 +164,21 @@ class Downloads:
 
         if delete:
             # Delete download object
-            self.app.db.session.delete(source.download)
+            self.db.session.delete(source.download)
             source.download = None
 
             # Delete selection if this source is the selection for its entity
-            if (source.entity and
-                    source.entity.selection and
-                    (source.entity.selection.source == source)):
-                self.app.db.session.delete(source.entity.selection)
-                source.entity.selection = None
+            # if (source.entity and
+            #         source.entity.selection and
+            #         (source.entity.selection.source == source)):
+            #     self.app.db.session.delete(source.entity.selection)
+            #     source.entity.selection = None
 
         else:
             # Just set the state
-            source.download.state = models.State.ARCHIVED
+            source.download.state = kit.DownloadState.ARCHIVED
 
-        self.app.db.session.commit()
+        self.db.session.commit()
 
     def archive(self, source):
         self._remove(source, delete=False)
@@ -247,12 +245,14 @@ class DownloadInfo:
 
 #         for (name, query) in queries:
 #             matches = app.selector.matches(query)
-#             srcs = app.selector.select(matches)
+#             groups = app.selector.group(matches)
+#             for (entity, matches) in groups:
+#                 src = app.selector.select(matches)
 
-#             if srcs is None:
-#                 continue
+#                 if src is None:
+#                     continue
 
-#             downloads.extend(srcs)
+#                 downloads.append(src)
 
 #         if not downloads:
 #             return

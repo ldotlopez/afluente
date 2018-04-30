@@ -38,7 +38,7 @@ class StateFilter(kit.FilterExtension):
         except database.NoResultsFoundError:
             return True
 
-        import ipdb; ipdb.set_trace(); pass
+        return True
 
 
 __arroyo_extensions__ = (StateFilter,)
