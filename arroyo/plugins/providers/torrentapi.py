@@ -53,10 +53,10 @@ import aiohttp
 from appkit.libs import urilib
 
 
-from arroyo import kit
+import arroyo.extensions
 
 
-class TorrentAPI(kit.ProviderExtension):
+class TorrentAPI(arroyo.extensions.ProviderExtension):
     __extension_name__ = 'torrentapi'
 
     DEFAULT_URI = r'http://torrentapi.org/pubapi_v2.php?mode=list'
@@ -164,9 +164,9 @@ class TorrentAPI(kit.ProviderExtension):
     def get_query_uri(self, query):
         try:
             querystr = str(query)
-        except kit.QueryConversionError as e:
+        except arroyo.exc.QueryConversionError as e:
             err = "Incomprehensible query"
-            raise kit.IncompatibleQueryError(err) from e
+            raise arroyo.exc.IncompatibleQueryError(err) from e
 
         qs = dict(search_string=querystr)
         try:

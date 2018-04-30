@@ -18,74 +18,54 @@
 # USA.
 
 
-# from arroyo import (
-#     downloads,
-#     selector,
-#     pluginlib
-# )
-
-
-# import itertools
-# import functools
-# import re
-# import sys
-
-
-# import humanfriendly
-# import tabulate
-
-# models = pluginlib.models
-
-
 import pathlib
-import pickle
 
 
 import appkit
-from appkit import utils
 
 
-from arroyo import kit
+import arroyo
+import arroyo.exc
+from arroyo.extensions import (
+    CommandExtension,
+    Parameter
+)
 
 
-class ArgumentsError(Exception):
-    pass
-
-
-class DownloadConsoleCommand(kit.CommandExtension):
+class DownloadConsoleCommand(CommandExtension):
     __extension_name__ = 'download'
 
     PARAMETERS = (
-        kit.Parameter(
+        Parameter(
             'list',
             action='store_true',
             help="Show current downloads"),
 
-        kit.Parameter(
+        Parameter(
             'cancel',
             help="Cancel a download"),
 
-        kit.Parameter(
+        Parameter(
             'archive',
             help="Cancel a download"),
 
-        kit.Parameter(
+        Parameter(
             'from-config',
             action='store_true',
             help=("Download sources from queries defined in the configuration "
                   "file")),
 
-        kit.Parameter(
+        Parameter(
             'manual',
             action='store_true',
             help=("Manualy select downloads")),
 
-        kit.Parameter(
+        Parameter(
             'auto',
             action='store_true',
             help=("Auto select downloads")),
 
-        kit.Parameter(
+        Parameter(
             'filter',
             abbr='f',
             dest='filters',
@@ -95,7 +75,7 @@ class DownloadConsoleCommand(kit.CommandExtension):
             help=('Select and download sources using filters. See search '
                   'command for more help')),
 
-        kit.Parameter(
+        Parameter(
             'keywords',
             nargs='*',
             help='keywords')
@@ -124,12 +104,12 @@ class DownloadConsoleCommand(kit.CommandExtension):
 
             if not (manual or auto):
                 errmsg = "One of --auto or --manual must be used"
-                raise ArgumentsError(errmsg)
+                raise arroyo.exc.ArgumentsError(errmsg)
 
             if filters:
-                query = kit.Query(**filters)
+                query = arroyo.Query(**filters)
             elif keywords:
-                query = kit.Query(' '.join(keywords))
+                query = arroyo.Query(' '.join(keywords))
             elif from_config:
                 raise NotImplementedError()
             else:

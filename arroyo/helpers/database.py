@@ -24,7 +24,7 @@ import contextlib
 from appkit.db import sqlalchemyutils as sautils
 
 
-from arroyo import kit
+import arroyo
 
 
 class NoResultsFoundError(Exception):
@@ -58,11 +58,11 @@ class Database:
         # models.py Unique fields
         attrs = None
 
-        if isinstance(obj, kit.Movie):
+        if isinstance(obj, arroyo.Movie):
             attrs = ('title', 'modifier')
-        elif isinstance(obj, kit.Episode):
+        elif isinstance(obj, arroyo.Episode):
             attrs = ('series', 'modifier', 'season', 'number')
-        elif isinstance(obj, kit.Source):
+        elif isinstance(obj, arroyo.Source):
             attrs = ('uri',)
         else:
             raise NotImplemented(obj)
@@ -85,7 +85,7 @@ class Database:
             pass
 
         # Deep-first merging
-        if isinstance(obj, kit.Source) and obj.entity:
+        if isinstance(obj, arroyo.Source) and obj.entity:
             obj.entity = self.merge(obj.entity)
 
         self.session.add(obj)
@@ -95,4 +95,4 @@ class Database:
         return [self.merge(obj) for obj in objs]
 
     def list_downloads(self):
-        return self.session.query(kit.Download).all()
+        return self.session.query(arroyo.Download).all()

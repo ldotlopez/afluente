@@ -25,7 +25,11 @@ import babelfish
 import guessit
 from appkit.blocks import cache
 from appkit import utils, Null
-from arroyo import kit
+
+
+import arroyo
+import arroyo.models
+
 
 PARSEABLE_TYPES = ['']
 
@@ -340,7 +344,7 @@ class MediaParser:
             raise InvalidEntityTypeError(err)
 
         try:
-            entity_cls = getattr(kit, entity_cls_name)
+            entity_cls = getattr(arroyo.models, entity_cls_name)
         except AttributeError as e:
             err = "Detected entity type '{entity_cls_name}' is invalid"
             err = err.format(entity_cls_name=entity_cls_name)

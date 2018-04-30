@@ -21,10 +21,11 @@
 from urllib import parse
 
 
-from arroyo import kit
+import arroyo.extensions
 
 
-class Epublibre(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
+class Epublibre(arroyo.extensions.BS4ParserProviderExtensionMixin,
+                arroyo.extensions.ProviderExtension):
     __extension_name__ = 'epublibre'
 
     DEFAULT_URI = (
@@ -36,13 +37,13 @@ class Epublibre(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
 
     def get_query_uri(self, query):
         if query.type != 'ebook':
-            raise kit.IncompatibleQueryError()
+            raise arroyo.exc.IncompatibleQueryError()
 
         try:
             querystr = str(query)
-        except kit.QueryConversionError as e:
+        except arroyo.exc.QueryConversionError as e:
             err = "Incomprehensible query"
-            raise kit.IncompatibleQueryError(err) from e
+            raise arroyo.exc.IncompatibleQueryError(err) from e
 
         return self.DEFAULT_URI + parse.quote(querystr)
 

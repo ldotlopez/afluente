@@ -23,14 +23,14 @@ import re
 from urllib import parse
 
 
-# import humanfriendly
-from appkit import utils
+import appkit.utils
 
 
-from arroyo import kit
+import arroyo.extensions
 
 
-class Eztv(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
+class Eztv(arroyo.extensions.BS4ParserProviderExtensionMixin,
+           arroyo.extensions.ProviderExtension):
     __extension_name__ = 'eztv'
 
     _BASE_DOMAIN = 'https://eztv.ag'
@@ -76,7 +76,7 @@ class Eztv(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
     def get_query_uri(self, query):
         # eztv only has series
         if query.type != 'episode':
-            raise kit.IncompatibleQueryError()
+            raise arroyo.exc.IncompatibleQueryError()
 
         try:
             series = query.series
@@ -182,7 +182,7 @@ class Eztv(kit.BS4ParserProviderExtensionMixin, kit.ProviderExtension):
         s = str(node)
 
         def _do_diff(diff):
-            return utils.now_timestamp() - diff
+            return appkit.utils.now_timestamp() - diff
 
         m = re.search(r'(\d+)([mhd]) (\d+)([smhd])', s)
         if m:

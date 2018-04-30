@@ -19,10 +19,7 @@
 
 
 import appkit
-from arroyo import (
-    kit,
-    models
-)
+import arroyo
 
 
 class DuplicatedDownloadError(Exception):
@@ -78,10 +75,10 @@ class Downloads:
         return self.plugin_name + ':' + s
 
     def sync(self):
-        qs = self.db.session.query(models.Download)
+        qs = self.db.session.query(arroyo.Download)
         qs = qs.filter(
-            models.Download.foreign_id.startswith(self.plugin_name + ':'))
-        qs = qs.filter(models.Download.state != kit.DownloadState.ARCHIVED)
+            arroyo.Download.foreign_id.startswith(self.plugin_name + ':'))
+        qs = qs.filter(arroyo.Download.state != arroyo.DownloadState.ARCHIVED)
         db_sources = [x.source for x in qs]
 
         plugin_ids = [self.add_plugin_prefix(x) for x in self.plugin.list()]
@@ -99,8 +96,8 @@ class Downloads:
 
             else:
                 # src was removed from downloader plugin
-                if src.download.state >= kit.DownloadState.SHARING:
-                    src.download.state = kit.DownloadState.ARCHIVED
+                if src.download.state >= arroyo.DownloadState.SHARING:
+                    src.download.state = arroyo.DownloadState.ARCHIVED
                 else:
                     # if src.selected:
                     #     self.db.session.delete(src.entity.selection)
@@ -132,8 +129,8 @@ class Downloads:
         foreign_id = self.plugin.add(source)
         foreign_id = '{name}:{fid}'.format(
             name=self.plugin_name, fid=foreign_id)
-        source.download = models.Download(
-            foreign_id=foreign_id, state=kit.DownloadState.INITIALIZING)
+        source.download = arroyo.Download(
+            foreign_id=foreign_id, state=arroyo.DownloadState.INITIALIZING)
 
         # if source.entity and source.entity.selection is None:
         #     selection = source.entity.SELECTION_MODEL(source=source)
@@ -176,7 +173,7 @@ class Downloads:
 
         else:
             # Just set the state
-            source.download.state = kit.DownloadState.ARCHIVED
+            source.download.state = arroyo.DownloadState.ARCHIVED
 
         self.db.session.commit()
 
@@ -226,7 +223,7 @@ class DownloadInfo:
         self.progress = progress or 0.0
 
 
-# class DownloadSyncCronTask(kit.Task):
+# class DownloadSyncCronTask(arroyo.Task):
 #     __extension_name__ = 'download-sync'
 #     INTERVAL = '5M'
 
@@ -234,7 +231,7 @@ class DownloadInfo:
 #         app.downloads.sync()
 
 
-# class DownloadQueriesCronTask(kit.Task):
+# class DownloadQueriesCronTask(arroyo.Task):
 #     __extension_name__ = 'download-queries'
 #     INTERVAL = '3H'
 

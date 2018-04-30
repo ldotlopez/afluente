@@ -18,11 +18,11 @@
 # USA.
 
 
-from arroyo import kit
+from arroyo.extensions import FilterExtension
 from arroyo.helpers import database
 
 
-class StateFilter(kit.FilterExtension):
+class StateFilter(FilterExtension):
     __extension_name__ = 'state'
 
     HANDLES = (

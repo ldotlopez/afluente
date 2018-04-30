@@ -21,10 +21,12 @@
 import functools
 
 
-from arroyo import kit
+from arroyo.extensions import (
+    FilterExtension
+)
 
 
-class TagFilters(kit.FilterExtension):
+class TagFilters(FilterExtension):
     __extension_name__ = 'advancedfilters'
 
     HANDLES = (

@@ -18,7 +18,7 @@
 # USA.
 
 
-from arroyo import kit
+import arroyo.extensions
 
 
 VARIABLES_NS = 'downloader.mock'
@@ -32,7 +32,7 @@ def key(sid):
     return '{}.{}'.format(VARIABLES_NS, sid)
 
 
-class MockDownloader(kit.DownloaderExtension):
+class MockDownloader(arroyo.extensions.DownloaderExtension):
     __extension_name__ = 'mock'
 
     def __init__(self, shell, *args, **kwargs):
@@ -43,7 +43,7 @@ class MockDownloader(kit.DownloaderExtension):
         sid = id_(source)
         k = key(sid)
         v = {
-            'state': kit.DownloadState.INITIALIZING,
+            'state': arroyo.DownloadState.INITIALIZING,
             'info': {
                 'files': None,
                 'eta': None,

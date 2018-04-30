@@ -31,10 +31,9 @@ from appkit import utils
 from appkit.libs import urilib
 
 
-from arroyo import (
-    bittorrentlib,
-    kit
-)
+import arroyo
+import arroyo.bittorrentlib
+import arroyo.extensions
 
 
 class Origin:
@@ -44,7 +43,7 @@ class Origin:
         'uri')
 
     def __init__(self, provider, uri=None, iterations=1):
-        if not isinstance(provider, kit.ProviderExtension):
+        if not isinstance(provider, arroyo.extensions.ProviderExtension):
             raise TypeError(provider)
 
         if uri is None:
@@ -95,7 +94,7 @@ class Scanner:
 
         # ret = list(_scan(origins_data))
         ret = [
-            (kit.Source(**x), None)
+            (arroyo.Source(**x), None)
             for x in origins_data
         ]
 
@@ -119,7 +118,7 @@ class Scanner:
         for (name, ext) in self.providers:
             try:
                 uri = ext.get_query_uri(query)
-            except kit.IncompatibleQueryError as e:
+            except arroyo.exc.IncompatibleQueryError as e:
                 err = "Provider '{name}' is not compatible"
                 err = err.format(name=name)
 

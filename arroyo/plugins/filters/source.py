@@ -22,10 +22,10 @@ import fnmatch
 import functools
 
 
-from arroyo import kit
+import arroyo.extensions
 
 
-class SourceFieldFilters(kit.FilterExtension):
+class SourceFieldFilters(arroyo.extensions.FilterExtension):
     __extension_name__ = 'sourcefields'
 
     HANDLES = (

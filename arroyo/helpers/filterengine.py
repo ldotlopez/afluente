@@ -25,7 +25,7 @@ import functools
 from appkit import Null
 
 
-from arroyo import kit
+import arroyo
 
 
 class MissingFilterError(Exception):
@@ -88,7 +88,7 @@ class Engine:
         return results
 
     def filter(self, query, results):
-        if not isinstance(query, kit.Query):
+        if not isinstance(query, arroyo.Query):
             raise TypeError(query)
         if not isinstance(results, collections.Iterable):
             raise TypeError(results)
