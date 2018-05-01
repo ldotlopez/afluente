@@ -336,7 +336,9 @@ class Arroyo(Application):
         except KeyError:
             msg = "Scan data missing from cache"
             self.logger.debug(msg)
+            results = None
 
+        if results is None:
             s = arroyo.helpers.scanner.Scanner(logger=self.logger,
                                                providers=self.get_providers())
             sources_and_metas = s.scan(query)
