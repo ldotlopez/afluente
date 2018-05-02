@@ -21,5 +21,5 @@ import arroyo
 
 
 if __name__ == '__main__':
-    app = arroyo.Arroyo()
+    app = arroyo.Application()
     app.execute_from_args()

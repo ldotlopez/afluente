@@ -288,7 +288,7 @@ class Scanner:
                 aiohttp.client_exceptions.ClientOSError,
                 aiohttp.client_exceptions.ClientResponseError,
                 aiohttp.client_exceptions.ServerDisconnectedError) as e:
-            err = "Error fetching «{uri}»: {err}"
+            err = "Error fetching «{uri}»: [{type}] {err}"
             err = err.format(
                 uri=uri, type=e.__class__.__name__,
                 err=str(e) or 'no reason')

@@ -83,18 +83,14 @@ class DownloadState:
     ARCHIVED = 7
 
 
-class ConsoleApplicationMixin(appkit.application.console.ConsoleApplicationMixin):
+class _BaseApplication(appkit.application.console.ConsoleApplicationMixin,
+                       appkit.application.Application):
     """
-    Reconfigure ConsoleApplicationMixin to use our CommandExtension
+    Implement our own features over appkit Application and Console Application
     """
+
     COMMAND_EXTENSION_POINT = arroyo.extensions.CommandExtension
 
-
-class Application(ConsoleApplicationMixin, appkit.application.Application):
-    """
-    Implement application model.
-    Mix necessary mixins and override some methods
-    """
     def load_plugin(self, plugin_name, *args, **kwargs):
         """
         Override this method to allow debugging and catch exceptions
@@ -104,7 +100,7 @@ class Application(ConsoleApplicationMixin, appkit.application.Application):
             msg = "Loaded plugin {name}"
             msg = msg.format(name=plugin_name)
             self.logger.debug(msg)
-        except extensionmanager.PluginNotLoadedError as e:
+        except appkit.blocks.extensionmanager.PluginNotLoadedError as e:
             msg = "Can't load plugin «{plugin_name}»: {msg}"
             msg = msg.format(plugin_name=plugin_name, msg=str(e))
             self.logger.error(msg)
@@ -149,10 +145,11 @@ class Application(ConsoleApplicationMixin, appkit.application.Application):
     #         import ipdb; ipdb.set_trace(); pass
 
 
-class Arroyo(Application):
+class Application(_BaseApplication):
     """
     Implement arroyo over customized Application
     """
+
     DEFAULT_PLUGINS = [
         'commands.download',
         # 'commands.settings',
@@ -316,8 +313,8 @@ class Arroyo(Application):
                 try:
                     entity, tags = mp.parse(src, metatags=metatags)
 
-                except (mediaparser.InvalidEntityTypeError,
-                        mediaparser.InvalidEntityArgumentsError) as e:
+                except (arroyo.helpers.mediaparser.InvalidEntityTypeError,
+                        arroyo.helpers.mediaparser.InvalidEntityArgumentsError) as e:
                     err = "Unable to parse '{name}': {e}"
                     err = err.format(name=src.name, e=e)
                     self.logger.error(err)
@@ -346,8 +343,6 @@ class Arroyo(Application):
 
             self.caches[CacheType.SCAN].set(query, results)
 
-        # Processed results can't be cached due a error
-        # in serialization of tags
         return results
 
     def filter(self, results, query, ignore_state=False):
