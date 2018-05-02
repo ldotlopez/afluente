@@ -597,12 +597,12 @@ class Query:
                 pass
 
             try:
-                ret += " S" + self.season.zfill(2)
+                ret += " S" + str(self.season).zfill(2)
             except AttributeError:
                 return ret
 
             try:
-                ret += "E" + self.number.zfill(2)
+                ret += "E" + str(self.season).zfill(2)
             except AttributeError:
                 pass
 

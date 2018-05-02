@@ -323,15 +323,16 @@ class MediaParser:
         if 'language' in info:
             try:
                 if info['language'] == 'und':
-                    raise babelfish.exceptions.LanguageConvertError('Undefined language')
+                    errmsg = "Undefined language"
+                    raise babelfish.exceptions.LanguageConvertError(errmsg)
 
                 info['language'] = '{}-{}'.format(
                     info['language'].alpha3,
                     info['language'].alpha2)
 
             except (babelfish.exceptions.LanguageConvertError) as e:
-                msg = "Language error in '{source}': {msg}"
-                msg = msg.format(source=source.name, msg=e)
+                msg = "Language error in '{name}': {msg}"
+                msg = msg.format(name=name, msg=e)
                 self.logger.warning(msg)
                 del info['language']
 

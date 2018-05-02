@@ -80,8 +80,6 @@ class SourceParsingTest(AssertsMixin, unittest.TestCase):
         entity, tags = self.mp.parse(source)
         return source, entity, tags
 
-
-class ParsingTest(AssertsMixin, unittest.TestCase):
     def test_episode_parse(self):
         s, e, t = self.parse('Lost s01e01.mkv')
         self.assertEntity(e,
@@ -131,16 +129,6 @@ class ParsingTest(AssertsMixin, unittest.TestCase):
             'Dark.S01E05.HDTV.KILLERS.PROPER[rartv]')
 
         self.assertEqual(e1, e2)
-
-
-class TestGuessitParse(unittest.TestCase):
-    def test_empty_entity_type(self):
-        m = MediaParser()
-        with self.assertRaises(InvalidEntityTypeError):
-            m._guessit_transform_data({})
-
-        with self.assertRaises(InvalidEntityTypeError):
-            m._guessit_transform_data(dict(type='foo'))
 
 
 if __name__ == '__main__':
