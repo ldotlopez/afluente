@@ -249,15 +249,39 @@ class Application(_BaseApplication):
                     self.logger.info(msg)
 
     #
-    # Own methods
+    # Controllers
     #
+    @property
+    def scanner(self):
+        return arroyo.helpers.scanner.Scanner(
+            logger=self.logger,
+            providers=self.get_providers())
+
+    @property
+    def mediaparser(self):
+        return arroyo.helpers.mediaparser.MediaParser(
+            logger=self.logger.getChild('mediaparser'))
+
+    @property
+    def filters(self):
+        filters = self.get_filters()
+        if not filters:
+            msg = "No filters available"
+            self.logger.error(msg)
+
+        return arroyo.helpers.filterengine.Engine(
+            filters=(x[1] for x in filters),
+            logger=self.logger)
 
     @property
     def downloads(self):
-        downloader_plugin = self.settings.get(SettingsKey.DOWNLOADER)
         return arroyo.helpers.downloads.Downloads(
-            plugin=self.get_downloader(downloader_plugin),
+            plugin=self.get_downloader(self.settings.get(SettingsKey.DOWNLOADER)),
             db=self.db)
+
+    #
+    # Own methods
+    #
 
     def get_providers(self):
         return [
@@ -306,12 +330,9 @@ class Application(_BaseApplication):
 
     def search(self, query):
         def _post_process(items):
-            mp = arroyo.helpers.mediaparser.MediaParser(
-                logger=self.logger.getChild('mediaparser'))
-
             for src, metatags in items:
                 try:
-                    entity, tags = mp.parse(src, metatags=metatags)
+                    entity, tags = self.mediaparser.parse(src, metatags=metatags)
 
                 except (arroyo.helpers.mediaparser.InvalidEntityTypeError,
                         arroyo.helpers.mediaparser.InvalidEntityArgumentsError) as e:
@@ -335,10 +356,7 @@ class Application(_BaseApplication):
             self.logger.debug(msg)
             results = None
 
-        if results is None:
-            s = arroyo.helpers.scanner.Scanner(logger=self.logger,
-                                               providers=self.get_providers())
-            sources_and_metas = s.scan(query)
+            sources_and_metas = self.scanner.scan(query)
             results = list(_post_process(sources_and_metas))
 
             self.caches[CacheType.SCAN].set(query, results)
@@ -346,19 +364,9 @@ class Application(_BaseApplication):
         return results
 
     def filter(self, results, query, ignore_state=False):
-        filters = self.get_filters()
-        if not filters:
-            msg = "No filters available"
-            self.logger.error(msg)
-            return []
-
-        fe = arroyo.helpers.filterengine.Engine(
-            filters=(x[1] for x in filters),
-            logger=self.logger)
-
-        results = fe.filter(query, results)
+        results = self.filters.filter(query, results)
         if not ignore_state:
-            results = fe.apply(self.get_filter('state'), None, None, results)
+            results = self.filters.apply(self.get_filter('state'), None, None, results)
 
         return results
 
