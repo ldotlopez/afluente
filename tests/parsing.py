@@ -21,11 +21,20 @@
 import unittest
 
 
+from arroyo import (
+    Episode,
+    Movie,
+    Source
+)
+from arroyo.helpers.mediaparser import (
+    MediaParser,
+    InvalidEntityTypeError,
+    InvalidEntityArgumentsError
+)
+
+
 from testutils import mock_source
 
-
-from arroyo import kit
-from arroyo.helpers import mediaparser
 
 __doc__ = """
 The parsing stage takes the data scrapper by the providers and converts it to
@@ -39,7 +48,7 @@ to handle all cases and sharp edges
 class AssertsMixin:
     def setUp(self):
         super().setUp()
-        self.mp = mediaparser.MediaParser()
+        self.mp = MediaParser()
 
     def assertEntity(self, entity, entity_class, data):
         self.assertTrue(isinstance(entity, entity_class))
@@ -49,7 +58,6 @@ class AssertsMixin:
     def parse(self, name, **kwargs):
         source = mock_source(name, **kwargs)
         entity, tags = self.mp.parse(source)
-        tags = {tag.key: tag.value for tag in tags}
         return source, entity, tags
 
 
@@ -57,13 +65,13 @@ class ParsingTest(AssertsMixin, unittest.TestCase):
     def test_episode_parse(self):
         s, e, t = self.parse('Lost s01e01.mkv')
         self.assertEntity(e,
-                          kit.Episode,
+                          Episode,
                           dict(series='lost', season=1, number=1))
 
     def test_movie_parse(self):
         s, e, t = self.parse('Dark.City.1999.mkv')
         self.assertEntity(e,
-                          kit.Movie,
+                          Movie,
                           dict(title='dark city', modifier='1999'))
 
     def test_language_found(self):
@@ -89,7 +97,7 @@ class ParsingTest(AssertsMixin, unittest.TestCase):
     def test_parse_movie_as_episode(self):
         # Sometimes providers (or uploaders) doen't classify the sources
         # correctly
-        with self.assertRaises(TypeError):
+        with self.assertRaises(InvalidEntityArgumentsError):
             s, e, m = self.parse(
                 'Al-Jazeera.Canadas.Dark.Secret.720p.HDTV.x264.AAC.mkv[eztv].mkv[eztv]',
                 type='episode')
@@ -107,11 +115,11 @@ class ParsingTest(AssertsMixin, unittest.TestCase):
 
 class TestGuessitParse(unittest.TestCase):
     def test_empty_entity_type(self):
-        m = mediaparser.MediaParser()
-        with self.assertRaises(mediaparser.InvalidEntityError):
+        m = MediaParser()
+        with self.assertRaises(InvalidEntityTypeError):
             m._guessit_transform_data({})
 
-        with self.assertRaises(mediaparser.InvalidEntityError):
+        with self.assertRaises(InvalidEntityTypeError):
             m._guessit_transform_data(dict(type='foo'))
 
 

@@ -21,11 +21,11 @@
 import hashlib
 from urllib import parse
 
-import arroyo
-from arroyo import kit
-from arroyo.helpers import (
-    mediaparser
+from arroyo import (
+    Application,
+    Source
 )
+from arroyo.helpers.mediaparser import MediaParser
 
 
 def mock_source(name, type=None, **kwargs):
@@ -37,11 +37,11 @@ def mock_source(name, type=None, **kwargs):
             urn='urn:btih:' + hashlib.sha1(name.encode('utf-8')).hexdigest(),
             dn=parse.quote_plus(name))
 
-    return kit.Source(name=name, type=type, **kwargs)
+    return Source(name=name, type=type, **kwargs)
 
 
 def analyze(src):
-    mp = mediaparser.MediaParser()
+    mp = MediaParser()
     entity, tags = mp.parse(src)
     src.entity = entity
     src.tags = tags
@@ -52,7 +52,7 @@ def source(*args, **kwargs):
     return analyze(mock_source(*args, **kwargs))
 
 
-class TestApp(arroyo.Arroyo):
+class TestApp(Application):
     def __init__(self, settings=None):
         if settings is None:
             settings = {}
