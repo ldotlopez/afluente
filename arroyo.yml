@@ -1,0 +1,5 @@
+plugins:
+  providers:
+    eztv:
+      default-language: eng-us
+      default-type: episode

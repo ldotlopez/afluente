@@ -1,6 +1,6 @@
 aiohttp==2.3.1
 appdirs==1.4.3
--e git+https://github.com/ldotlopez/appkit.git@a1cb2b4ff69b633c69e39ed0480d80d1c86d609b#egg=appkit
+-e git+https://github.com/ldotlopez/appkit.git@bfb61bdd18930b3ad021ea32ed893859a35e4662#egg=appkit
 async-timeout==2.0.0
 attrs==17.4.0
 babelfish==0.5.5

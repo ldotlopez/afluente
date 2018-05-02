@@ -38,6 +38,7 @@ import appkit.blocks.quicklogging
 import appkit.blocks.store
 import appkit.utils
 import appkit.db.sqlalchemyutils
+import yaml
 
 
 import arroyo.extensions
@@ -184,18 +185,18 @@ class Application(_BaseApplication):
     })
 
     def __init__(self, settings=None):
-        store_ = appkit.blocks.store.Store()
+        store = ArroyoStore()
 
         if settings is None:
             settings = self.DEFAULT_SETTINGS
 
         for (key, value) in settings.items():
-            store_.set(key, value)
+            store.set(key, value)
 
         super().__init__(
             name='arroyo',
             logger=QuickLogger(level=appkit.blocks.quicklogging.Level.WARNING),
-            settings=store_,
+            settings=store,
         )
 
         # Open database connection
@@ -436,6 +437,19 @@ class Application(_BaseApplication):
     @contextlib.contextmanager
     def get_async_http_client(self):
         yield ArroyoAsyncHTTPClient()
+
+
+class ArroyoStore(appkit.blocks.store.Store):
+    """
+    YAML compatible store
+    """
+
+    def load(self, stream):
+        data = yaml.load(stream.read())
+        data = appkit.blocks.store.flatten_dict(data)
+
+        for (k, v) in data.items():
+            self.set(k, v)
 
 
 class ArroyoAsyncHTTPClient(appkit.blocks.httpclient.AsyncHTTPClient):
