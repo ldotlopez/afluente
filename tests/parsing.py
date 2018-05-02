@@ -50,6 +50,26 @@ class AssertsMixin:
         super().setUp()
         self.mp = MediaParser()
 
+
+class NameParsingTest(AssertsMixin, unittest.TestCase):
+    def parse(self, name, **kwargs):
+        return self.mp.parse_name(name)
+
+    def assertParse(self, name, type, params):
+        t, p, m, o = self.mp.parse_name(name)
+        p = {k: p[k] for k in params}
+
+        self.assertEqual(t, type)
+        self.assertEqual(p, params)
+
+    def test_episode_parse(self):
+        self.assertParse(
+            'Lost s01e01',
+            'episode',
+            dict(series='Lost', season=1, number=1))
+
+
+class SourceParsingTest(AssertsMixin, unittest.TestCase):
     def assertEntity(self, entity, entity_class, data):
         self.assertTrue(isinstance(entity, entity_class))
         _data = {attr: getattr(entity, attr) for attr in data}

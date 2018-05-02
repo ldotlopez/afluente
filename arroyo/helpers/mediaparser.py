@@ -144,21 +144,50 @@ class MediaParser:
         self.logger = logger or Null
         self.cache = ParseCache()
 
-    def parse(self, source, metatags=None):
-        type = source.type
-        entity, metatags, other = None, metatags or {}, {}
+    def parse_name(self, name, hints={}):
+        type = hints.get('type')
 
         # Skip detection
         if type == 'other':
             pass
 
         elif type in ['episode', 'movie', None]:
-            # Episode, Movies: parse by guessit
-            entity, meta, other = self._guessit_parse(source, metatags={})
+            entity_type_name, entity_params, metadata, other = self._guessit_parse(name, type, metatags={})
 
         elif type in ['ebook']:
             # Book: parse by _book_parse
-            ebook_data, meta, other = self._ebook_parse(source, metatags={})
+            ebook_data, meta, other = self._ebook_parse(name, metatags={})
+
+        # Warn about leftovers
+        for (key, value) in other.items():
+            msg = "{name} has a non identified property {key}={value}"
+            msg = msg.format(name=name, key=key, value=value)
+            self.logger.warning(msg)
+
+        return entity_type_name, entity_params, metadata, other
+
+    def parse(self, source, metadata=None):
+        hints = metadata.copy() if metadata else {}
+        hints['type'] = source.type
+
+        entity_type_name, entity_params, metadata, other = self.parse_name(source.name, hints)
+        entity_model_name = ''.join([x.capitalize() for x in entity_type_name.split('-')])
+
+        try:
+            entity_model_cls = getattr(arroyo.models, entity_model_name)
+        except AttributeError as e:
+            err = "Invalid entity type '{entity_type_name}'"
+            err = err.format(entity_type_name=entity_type_name)
+            raise InvalidEntityArgumentsError(err) from e
+
+        try:
+            entity = entity_model_cls(**entity_params)
+        except (TypeError, ValueError) as e:
+            entity = None
+            err = "Invalid parameters for entity '{entity_model_cls}': {params}"
+            err = err.format(entity_model_cls=entity_model_cls,
+                             params=repr(entity_params))
+            raise InvalidEntityArgumentsError(err) from e
 
         # Warn about leftovers
         for (key, value) in other.items():
@@ -166,27 +195,20 @@ class MediaParser:
             msg = msg.format(source=source.name, key=key, value=value)
             self.logger.warning(msg)
 
-        return entity, meta
+        return entity, metadata
 
-    def _ebook_parse(self, source, metatags):
+    def _ebook_parse(self, name, metadata):
         """
         """
         try:
-            return (
-                # Entity. TODO
-                None,
-
-                # metatags, we need both
-                {
-                    'author': metatags.pop('ebook.author'),
-                    'title': metatags.pop('ebook.title'),
-                },
-                metatags  # other
-            )
+            author = metadata.pop('ebook.author')
+            title = metadata.pop('ebook.title')
         except KeyError:
-            return None, {}, metatags
+            return None, {}, {}, {}
 
-    def _guessit_parse(self, source, metatags):
+        return 'ebook', {'author': author, 'title': title}, metadata, {}
+
+    def _guessit_parse(self, name, type, metatags):
         """
         guessit backend for episodes and movies
 
@@ -204,9 +226,6 @@ class MediaParser:
         # In order to fix this we made a "preprocessing" to extract (and
         # remove) known distributors from source's name and add distribution
         # field into info after processing source's name with guessit.
-        name = source.name
-        type = source.type
-
         distributors = set()
         for dist in KNOWN_DISTRIBUTORS:
             tag = '[' + dist + ']'
@@ -330,47 +349,26 @@ class MediaParser:
 
     def _guessit_transform_data(self, guess_data):
         """
-        Transform guessit data into models
+        Transform guessit data into arroyo standards
         """
-
-        # Extract type from data and convert it into a class name, extract
-        # that name from kit to the the model class
-        type = guess_data.pop('type', '')
-        entity_cls_name = ''.join(x.capitalize()
-                                  for x in type.split('_'))
-
-        if not entity_cls_name:
-            err = "Detected entity type is empty"
-            raise InvalidEntityTypeError(err)
-
         try:
-            entity_cls = getattr(arroyo.models, entity_cls_name)
-        except AttributeError as e:
-            err = "Detected entity type '{entity_cls_name}' is invalid"
-            err = err.format(entity_cls_name=entity_cls_name)
+            entity_type_name = guess_data.pop('type')
+        except KeyError as e:
+            err = "Detected entity type is empty"
             raise InvalidEntityTypeError(err) from e
 
         # Extract entity parameters using the definitions from the top of
         # this module
         entity_params = {}
         transfer_items(guess_data, entity_params,
-                       ENTITY_FIELD_TRANSLATIONS[type])
+                       ENTITY_FIELD_TRANSLATIONS[entity_type_name])
 
-        try:
-            entity = entity_cls(**entity_params)
-        except (TypeError, ValueError) as e:
-            entity = None
-            err = "Invalid parameters for entity '{entity_cls_name}': {params}"
-            err = err.format(entity_cls_name=entity_cls_name,
-                             params=repr(entity_params))
-            raise InvalidEntityArgumentsError(err) from e
-
-        # Process meta
-        tags = {}
-        transfer_items(guess_data, tags,
+        # Transfer known metadata from guessit data
+        metadata = {}
+        transfer_items(guess_data, metadata,
                        META_FIELD_TRANSLATIONS)
 
-        return entity, tags, guess_data
+        return entity_type_name, entity_params, metadata, guess_data
 
 
 class ParseCache(cache.DiskCache):

@@ -330,9 +330,9 @@ class Application(_BaseApplication):
 
     def search(self, query):
         def _post_process(items):
-            for src, metatags in items:
+            for src, metadata in items:
                 try:
-                    entity, tags = self.mediaparser.parse(src, metatags=metatags)
+                    entity, tags = self.mediaparser.parse(src, metadata=metadata)
 
                 except (arroyo.helpers.mediaparser.InvalidEntityTypeError,
                         arroyo.helpers.mediaparser.InvalidEntityArgumentsError) as e:
@@ -539,7 +539,9 @@ class Query:
                 raise TypeError(msg)
 
             keywords = str(args[0])
-            raise NotImplementedError("keywords='{}'".format(keywords))
+            parser = arroyo.helpers.mediaparser.MediaParser()
+            type, params, _, _ = parser.parse_name(keywords)
+            params['type'] = type or 'source'
 
         if 'type' not in params:
             params['type'] = type
