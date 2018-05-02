@@ -50,6 +50,11 @@ class DownloadConsoleCommand(CommandExtension):
             help="Cancel a download"),
 
         Parameter(
+            'force',
+            action='store_true',
+            help='Force downloading of already downloaded items.'),
+
+        Parameter(
             'from-config',
             action='store_true',
             help=("Download sources from queries defined in the configuration "
@@ -59,11 +64,6 @@ class DownloadConsoleCommand(CommandExtension):
             'manual',
             action='store_true',
             help=("Manualy select downloads")),
-
-        Parameter(
-            'auto',
-            action='store_true',
-            help=("Auto select downloads")),
 
         Parameter(
             'filter',
@@ -81,11 +81,54 @@ class DownloadConsoleCommand(CommandExtension):
             help='keywords')
     )
 
+    def merge(self, entity, sources):
+        if entity:
+            entity = self.shell.db.merge(entity)
+            sources = entity.sources
+        else:
+            sources = [self.shell.db.merge(src) for src in sources]
+
+        return entity, sources
+
+    def select(self, entity, sources, query, manual=False, force=False):
+        downloading = [src for src in sources if src.download]
+
+        if downloading and not force:
+            msg = "{entity} already downloaded"
+            msg = msg.format(entity=str(entity))
+            print(msg)
+            return None
+
+        if manual:
+            print(str(entity))
+            for (idx, src) in enumerate(sources):
+                msg = "{idx}. {src}"
+                msg = msg.format(idx=idx+1, src=src)
+                print(msg)
+            print()
+
+            while True:
+                n = input("Selection? ")
+                try:
+                    n = int(n) - 1
+                    if n < 0:
+                        raise IndexError(n)
+
+                    selected = sources[int(n) - 1]
+                except (ValueError, IndexError):
+                    print("Value not valid")
+                    continue
+
+                return selected
+
+        return self.shell.select(sources, query)
+
     def main(self,
              list=False,
              cancel=None, archive=None,
              filters=None, keywords=None, from_config=False,
-             manual=False, auto=False):
+             force=False,
+             manual=False):
 
         if list:
             for dl in self.shell.get_downloads():
@@ -98,14 +141,6 @@ class DownloadConsoleCommand(CommandExtension):
             self.shell.archive(archive)
 
         elif filters or keywords or from_config:
-            if (manual and auto):
-                errmsg = "--auto and --manual are mutually exclusive"
-                raise ArgumentsError(errmsg)
-
-            if not (manual or auto):
-                errmsg = "One of --auto or --manual must be used"
-                raise arroyo.exc.ArgumentsError(errmsg)
-
             if filters:
                 query = arroyo.Query(**filters)
             elif keywords:
@@ -122,18 +157,27 @@ class DownloadConsoleCommand(CommandExtension):
                 return
 
             results = self.shell.filter(results, query)
+
             if not results:
                 err = "No matching results found"
                 self.shell.logger.error(err)
                 return
 
-            results = self.shell.group(results)
+            groups = self.shell.group(results)
+            for (entity, srcs) in groups:
+                entity, srcs = self.merge(entity, srcs)
+                selected = self.select(entity, srcs, query,
+                                       manual=manual, force=force)
 
-            self.display_results(results)
-            for (entity, options) in results:
-                selected = self.shell.select(options, query)
-                print(selected)
+                if selected is None:
+                    msg = "No selection for {entity}"
+                    msg = msg.format(entity=str(entity))
+                    continue
+
                 self.shell.download(selected)
+                msg = "Downloading {src}"
+                msg = msg.format(src=selected)
+                print(msg)
 
         else:
             raise NotImplementedError()
