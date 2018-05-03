@@ -41,6 +41,9 @@
 #  'size': 583676381,
 #  'title': 'Westworld.S01E10.iNTERNAL.HDTV.x264-TURBO[rartv]'}
 
+# If no torrents found (but there are no errors from API) this response is send:
+# {"error":"No results found", "error_code":20}
+
 
 import asyncio
 import json
@@ -154,8 +157,11 @@ class TorrentAPI(arroyo.extensions.ProviderExtension):
         try:
             psrcs = data['torrent_results']
         except KeyError:
-            msg = "Invalid response, missing torrent_results key"
-            self.logger.error(msg)
+            if data.get('error_code', None) != 20:
+                msg = "Invalid response, missing torrent_results key. Data: {data}"
+                msg = msg.format(data=repr(data))
+                self.logger.error(msg)
+
             return []
 
         ret = [convert_data(x) for x in psrcs]
