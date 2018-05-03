@@ -14,6 +14,7 @@ idna==2.6
 idna-ssl==1.0.1
 multidict==4.1.0
 python-dateutil==2.6.1
+PyYAML==3.12
 rebulk==0.9.0
 six==1.11.0
 SQLAlchemy==1.1.14
