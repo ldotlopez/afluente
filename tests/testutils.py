@@ -23,6 +23,7 @@ from urllib import parse
 
 from arroyo import (
     Application,
+    SettingsKey,
     Source
 )
 from arroyo.helpers.mediaparser import MediaParser
@@ -57,5 +58,5 @@ class TestApp(Application):
         if settings is None:
             settings = {}
 
-        settings[kit.SettingsKeys.DB_URI] = 'sqlite:///:memory:'
+        settings[SettingsKey.DB_URI] = 'sqlite:///:memory:'
         super().__init__(settings)

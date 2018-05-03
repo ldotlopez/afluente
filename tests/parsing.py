@@ -45,15 +45,10 @@ to handle all cases and sharp edges
 """
 
 
-class AssertsMixin:
+class NameParsingTest(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.mp = MediaParser()
-
-
-class NameParsingTest(AssertsMixin, unittest.TestCase):
-    def parse(self, name, **kwargs):
-        return self.mp.parse_name(name)
 
     def assertParse(self, name, type, params):
         t, p, m, o = self.mp.parse_name(name)
@@ -68,8 +63,21 @@ class NameParsingTest(AssertsMixin, unittest.TestCase):
             'episode',
             dict(series='Lost', season=1, number=1))
 
+    def test_with_hints(self):
+        t, p, m, o = self.mp.parse_name('foo bar')
+        self.assertEqual(t, 'movie')
+        self.assertEqual(p, dict(title='foo bar'))
 
-class SourceParsingTest(AssertsMixin, unittest.TestCase):
+        t, p, m, o = self.mp.parse_name('foo bar', hints=dict(type='source'))
+        self.assertTrue(t is None)
+        self.assertEqual(p, dict())
+
+
+class SourceParsingTest(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        self.mp = MediaParser()
+
     def assertEntity(self, entity, entity_class, data):
         self.assertTrue(isinstance(entity, entity_class))
         _data = {attr: getattr(entity, attr) for attr in data}

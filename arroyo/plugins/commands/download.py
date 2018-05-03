@@ -81,46 +81,6 @@ class DownloadConsoleCommand(CommandExtension):
             help='keywords')
     )
 
-    def _base_params_from_type(self, type='source'):
-        if type is None:
-            type = 'source'
-
-        type_defaults_key = 'selector.query-{type}-defaults'
-        type_defaults_key = type_defaults_key.format(type=type)
-
-        params = {}
-        params.update(self.shell.settings.get('selector.query-defaults', {}))
-        params.update(self.shell.settings.get(type_defaults_key, {}))
-
-        return params
-
-    def queries_from_config(self):
-        query_defaults = self.shell.settings.get('selector.query-defaults')
-        query_type_defaults = {}
-
-        config_queries = self.shell.settings.get('queries', {})
-
-        ret = []
-
-        for (name, query_params) in config_queries.items():
-            params = self._base_params_from_type(query_params.get('type', 'source'))
-            params.update(query_params)
-
-            query = arroyo.Query(**parms)
-            ret.append(query)
-
-        return ret
-
-    def query_from_params(self, **query_params):
-        params = self._base_params_from_type(query_params.get('type', 'source'))
-        params.update(query_params)
-        return arroyo.Query(**params)
-
-    def query_from_keywords(self, keywords):
-        query = arroyo.Query(keywords)
-        query_params = query.asdict()
-        return self.query_from_params(**query_params)
-
     def merge(self, entity, sources):
         if entity:
             entity = self.shell.db.merge(entity)
@@ -181,15 +141,16 @@ class DownloadConsoleCommand(CommandExtension):
             self.shell.archive(archive)
 
         elif filters or keywords or from_config:
-            if filters:
-                queries = [self.query_from_params(**filters)]
-
-            elif keywords:
+            if keywords:
                 keywords = ' '.join(keywords)
-                queries = [self.query_from_keywords(keywords)]
+                # Use type=None by default to allow autodetection of media type
+                queries = [self.shell.get_query_from_keywords(keywords, type=filters.get('type'))]
+
+            elif filters:
+                queries = [self.shell.get_query_from_params(**filters)]
 
             elif from_config:
-                queries = self.queries_from_config()
+                queries = self.shell.get_queries_from_config()
 
             else:
                 raise NotImplementedError()

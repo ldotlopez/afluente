@@ -36,8 +36,8 @@ import appkit.blocks.extensionmanager
 import appkit.blocks.httpclient
 import appkit.blocks.quicklogging
 import appkit.blocks.store
-import appkit.utils
 import appkit.db.sqlalchemyutils
+import appkit.utils
 import yaml
 
 
@@ -58,14 +58,19 @@ from arroyo.models import (
 
 
 class SettingsKey:
-    DB_URI = 'db-uri'
-    DOWNLOADER = 'downloader'
-    ENABLE_CACHE = 'enable-cache'
-    LOG_LEVEL = 'log-level'
-    COMMANDS_NS = 'plugins.commands.'
-    FILTERS_NS = 'plugins.filters.'
-    PLUGINS_NS = 'plugins.'
-    PROVIDERS_NS = 'plugins.providers.'
+    DB_URI                   = 'db-uri'
+    DOWNLOADER               = 'downloader'
+    ENABLE_CACHE             = 'enable-cache'
+    LOG_LEVEL                = 'log-level'
+    QUERY_DEFAULTS           = 'selector.query-defaults'
+    QUERY_TYPE_DEFAULTS_TMPL = 'selector.query-{type}-defaults'
+    QUERIES                  = 'queries'
+    QUERIES_NS               = 'queries.'
+    PLUGINS                  = 'plugins'
+    PLUGINS_NS               = 'plugins.'
+    FILTERS_NS               = 'plugins.filters.'
+    PROVIDERS_NS             = 'plugins.providers.'
+    COMMANDS_NS              = 'plugins.commands.'
 
 
 class CacheType:
@@ -82,6 +87,18 @@ class DownloadState:
     SHARING = 5
     DONE = 6
     ARCHIVED = 7
+
+
+DownloadStateSymbol = {
+    # State.NONE: ' ',
+    DownloadState.INITIALIZING: '⋯',
+    DownloadState.QUEUED: '⋯',
+    DownloadState.PAUSED: '‖',
+    DownloadState.DOWNLOADING: '↓',
+    DownloadState.SHARING: '⇅',
+    DownloadState.DONE: '✓',
+    DownloadState.ARCHIVED: '▣'
+}
 
 
 class _BaseApplication(appkit.application.console.ConsoleApplicationMixin,
@@ -212,7 +229,8 @@ class Application(_BaseApplication):
         db_sess = appkit.db.sqlalchemyutils.create_session(db_uri)
 
         # Initialize app variables
-        self.variables = appkit.db.sqlalchemyutils.KeyValueManager(Variable, db_sess)
+        self.variables = appkit.db.sqlalchemyutils.KeyValueManager(Variable,
+                                                                   db_sess)
 
         # Register extension points
         self.register_extension_point(arroyo.extensions.FilterExtension)
@@ -276,8 +294,9 @@ class Application(_BaseApplication):
 
     @property
     def downloads(self):
+        downloader_name = self.settings.get(SettingsKey.DOWNLOADER)
         return arroyo.helpers.downloads.Downloads(
-            plugin=self.get_downloader(self.settings.get(SettingsKey.DOWNLOADER)),
+            plugin=self.get_downloader(downloader_name),
             db=self.db)
 
     #
@@ -329,14 +348,69 @@ class Application(_BaseApplication):
     def get_downloader(self, name):
         return self.get_extension(arroyo.extensions.DownloaderExtension, name)
 
+    def _get_base_query_params_from_type(self, type):
+        if not isinstance(type, str):
+            raise TypeError(type)
+        if not type:
+            raise ValueError(type)
+
+        type_defaults_key = arroyo.SettingsKey.QUERY_TYPE_DEFAULTS_TMPL
+        type_defaults_key = type_defaults_key.format(type=type)
+
+        params = {}
+        params.update(self.settings.get(arroyo.SettingsKey.QUERY_DEFAULTS, {}))
+        params.update(self.settings.get(type_defaults_key, {}))
+
+        return params
+
+    def get_queries_from_config(self):
+        query_defaults = self.settings.get(arroyo.SettingsKey.QUERY_DEFAULTS,
+                                           {})
+        query_type_defaults = {}
+
+        config_queries = self.settings.get(arroyo.SettingsKey.QUERIES, {})
+
+        ret = []
+
+        for (name, query_params) in config_queries.items():
+            query_type = query_params.get('type', 'source')
+
+            params = self._get_base_query_params_from_type(query_type)
+            params.update(query_params)
+
+            query = Query(**parms)
+            ret.append(query)
+
+        return ret
+
+    def get_query_from_params(self, **query_params):
+        query_type = query_params.get('type', 'source')
+
+        params = self._get_base_query_params_from_type(query_type)
+        params.update(query_params)
+
+        return Query(**params)
+
+    def get_query_from_keywords(self, keywords, **params):
+        query = Query(keywords, **params)
+        query_params = query.asdict()
+        query_type = query_params.get('type', 'source')
+
+        params = self._get_base_query_params_from_type(query_type)
+        params.update(query_params)
+
+        return Query(**params)
+
     def search(self, query):
         def _post_process(items):
             for src, metadata in items:
                 try:
-                    entity, tags = self.mediaparser.parse(src, metadata=metadata)
+                    entity, tags = self.mediaparser.parse(src,
+                                                          metadata=metadata)
 
                 except (arroyo.helpers.mediaparser.InvalidEntityTypeError,
-                        arroyo.helpers.mediaparser.InvalidEntityArgumentsError) as e:
+                        arroyo.helpers.mediaparser.InvalidEntityArgumentsError
+                        ) as e:
                     err = "Unable to parse '{name}': {e}"
                     err = err.format(name=src.name, e=e)
                     self.logger.error(err)
@@ -367,7 +441,10 @@ class Application(_BaseApplication):
     def filter(self, results, query, ignore_state=False):
         results = self.filters.filter(query, results)
         if not ignore_state:
-            results = self.filters.apply(self.get_filter('state'), None, None, results)
+            results = self.filters.apply(self.get_filter('state'),
+                                         None,
+                                         None,
+                                         results)
 
         return results
 
@@ -487,7 +564,8 @@ class ArroyoScanCache(appkit.blocks.cache.DiskCache):
     def __init__(self, *args, **kwargs):
         basedir = (
             kwargs.pop('basedir', None) or
-            appkit.utils.user_path(appkit.utils.UserPathType.CACHE, name='scan')
+            appkit.utils.user_path(appkit.utils.UserPathType.CACHE,
+                                   name='scan')
         )
         os.makedirs(basedir, exist_ok=True)
         delta = kwargs.pop('delta', None) or 60*60
@@ -526,18 +604,6 @@ class LoggerFormatter(appkit.blocks.quicklogging.DefaultFormatter):
         return super().format(record)
 
 
-DOWNLOAD_STATE_SYMBOL = {
-    # State.NONE: ' ',
-    DownloadState.INITIALIZING: '⋯',
-    DownloadState.QUEUED: '⋯',
-    DownloadState.PAUSED: '‖',
-    DownloadState.DOWNLOADING: '↓',
-    DownloadState.SHARING: '⇅',
-    DownloadState.DONE: '✓',
-    DownloadState.ARCHIVED: '▣'
-}
-
-
 class Query:
     """
     Represents a user query.
@@ -546,19 +612,29 @@ class Query:
     """
     _PATTERN = r'^[a-z]+$'
 
-    def __init__(self, *args, type='source', **params):
+    def __init__(self, *args, **params):
         if args:
+            # Convert args[0] in keyword
             if len(args) != 1:
                 msg = "Keywords must be a single string"
                 raise TypeError(msg)
 
-            keywords = str(args[0])
-            parser = arroyo.helpers.mediaparser.MediaParser()
-            type, params, _, _ = parser.parse_name(keywords)
-            params['type'] = type or 'source'
+            if not isinstance(args[0], str):
+                raise TypeError(args[0])
+
+            keywords = args[0]
+            if params.get('type') == 'source':
+                # type='source' is a special case
+                params['name_glob'] = '*' + keywords.replace(' ', '*') + '*'
+
+            else:
+                # In any other cases we relay on mediaparser to build the query
+                parser = arroyo.helpers.mediaparser.MediaParser()
+                type, params, _, _ = parser.parse_name(args[0], hints=params)
+                params['type'] = type
 
         if 'type' not in params:
-            params['type'] = type
+            params['type'] = 'source'
 
         _attrs = []
         for (key, value) in params.items():
@@ -591,7 +667,7 @@ class Query:
                 pass
 
             try:
-                return getattr(self, attr + '-glob').replace('*', ' ').strip()
+                return getattr(self, attr + '_glob').replace('*', ' ').strip()
             except AttributeError:
                 pass
 
@@ -606,7 +682,7 @@ class Query:
                 return _source_base_string()
 
             try:
-                ret += " {}".format(self.series_year)
+                ret += " ({})".format(self.series_year)
             except AttributeError:
                 pass
 
@@ -616,7 +692,7 @@ class Query:
                 return ret
 
             try:
-                ret += "E" + str(self.season).zfill(2)
+                ret += "E" + str(self.number).zfill(2)
             except AttributeError:
                 pass
 

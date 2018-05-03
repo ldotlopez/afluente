@@ -147,9 +147,9 @@ class MediaParser:
     def parse_name(self, name, hints={}):
         type = hints.get('type')
 
-        # Skip detection
-        if type == 'other':
-            pass
+        # Skip/Ignore detection
+        if type in ['source', 'other']:
+            entity_type_name, entity_params, metadata, other = None, {}, {}, {}
 
         elif type in ['episode', 'movie', None]:
             entity_type_name, entity_params, metadata, other = self._guessit_parse(name, type, metatags={})
@@ -157,6 +157,9 @@ class MediaParser:
         elif type in ['ebook']:
             # Book: parse by _book_parse
             ebook_data, meta, other = self._ebook_parse(name, metatags={})
+
+        else:
+            raise NotImplementedError()
 
         # Warn about leftovers
         for (key, value) in other.items():
