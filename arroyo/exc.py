@@ -35,3 +35,19 @@ class IncompatibleQueryError(Exception):
 
 class QueryConversionError(Exception):
     pass
+
+
+class DuplicatedDownloadError(Exception):
+    """Requested download already exists
+
+    Raised by downloader plugins
+    """
+    pass
+
+
+class DownloadNotFoundError(Exception):
+    """Requested download doesn't exists
+
+    Raised by downloader plugins
+    """
+    pass

@@ -19,18 +19,22 @@
 
 
 import unittest
-from unittest import mock
+import unittest.mock
 import time
 
 
-# from testapp import TestApp, testutils.mock_source
-# from arroyo import (
-#     downloads,
-#     models
-# )
+from arroyo import (
+    DownloadState,
+    SettingsKey
+)
+from arroyo.exc import (
+    DownloadNotFoundError,
+    DuplicatedDownloadError
+)
+from arroyo.extensions import (
+    DownloaderExtension
+)
 
-from arroyo import kit
-from arroyo.helpers import downloads
 import testutils
 
 
@@ -45,7 +49,7 @@ class BaseTest:
     def setUp(self):
         settings = {'plugins.' + k + '.enabled': True
                     for k in self.PLUGINS}
-        settings[kit.SettingsKeys.DOWNLOADER] = self.DOWNLOADER
+        settings[SettingsKey.DOWNLOADER] = self.DOWNLOADER
         self.app = testutils.TestApp(settings)
 
     def test_add(self):
@@ -64,7 +68,7 @@ class BaseTest:
         self.app.download(src1)
         self.wait()
 
-        with self.assertRaises(downloads.DuplicatedDownloadError):
+        with self.assertRaises(DuplicatedDownloadError):
             self.app.download(src1)
 
         self.assertEqual(
@@ -77,7 +81,7 @@ class BaseTest:
         self.app.archive(src1)
         self.wait()
 
-        with self.assertRaises(downloads.DuplicatedDownloadError):
+        with self.assertRaises(DuplicatedDownloadError):
             self.app.download(src1)
 
         self.assertEqual(
@@ -105,7 +109,7 @@ class BaseTest:
 
         self.assertEqual(
             src1.download.state,
-            kit.DownloadState.ARCHIVED)
+            DownloadState.ARCHIVED)
         self.assertEqual(
             self.app.downloads.list(),
             [])
@@ -115,13 +119,13 @@ class BaseTest:
         src2 = testutils.mock_source('bar')
         self.wait()
 
-        with self.assertRaises(downloads.DownloadNotFoundError):
+        with self.assertRaises(DownloadNotFoundError):
             self.app.cancel(src1)
-        with self.assertRaises(downloads.DownloadNotFoundError):
+        with self.assertRaises(DownloadNotFoundError):
             self.app.archive(src2)
 
     def plugin_class(self):
-        return self.app._get_extension_class(kit.DownloaderExtension,
+        return self.app._get_extension_class(DownloaderExtension,
                                              self.DOWNLOADER)
 
     def foreign_ids(self, srcs):
@@ -135,8 +139,8 @@ class BaseTest:
         self.wait()
 
         fake_list = self.foreign_ids([src1, src2])
-        with mock.patch.object(self.plugin_class(), 'list',
-                               return_value=fake_list):
+        with unittest.mock.patch.object(self.plugin_class(), 'list',
+                                        return_value=fake_list):
             self.assertEqual(
                 set(self.app.downloads.list()),
                 set([src1]))
@@ -149,8 +153,8 @@ class BaseTest:
         self.wait()
 
         fake_list = self.foreign_ids([src1])
-        with mock.patch.object(self.plugin_class(), 'list',
-                               return_value=fake_list):
+        with unittest.mock.patch.object(self.plugin_class(), 'list',
+                                        return_value=fake_list):
 
             self.app.downloads.sync()
 
@@ -166,17 +170,17 @@ class BaseTest:
         self.wait()
 
         # Manually update state of src2
-        src2.download.state = kit.DownloadState.SHARING
+        src2.download.state = DownloadState.SHARING
 
         # Mock plugin list to not list src2
         fake_list = self.foreign_ids([src1])
-        with mock.patch.object(self.plugin_class(), 'list',
-                               return_value=fake_list):
+        with unittest.mock.patch.object(self.plugin_class(), 'list',
+                                        return_value=fake_list):
             self.app.get_downloads()
 
         self.assertEqual(
             src2.download.state,
-            kit.DownloadState.ARCHIVED
+            DownloadState.ARCHIVED
         )
 
     def test_info(self):
@@ -217,7 +221,8 @@ class DirectoryTest(BaseTest, unittest.TestCase):
     def setUp(self):
         super().setUp()
         cls = self.plugin_class()
-        cls._fetch_torrent = mock.Mock(return_value=b'')
+        cls._fetch_torrent = unittest.mock.Mock(return_value=b'')
+
 
 if __name__ == '__main__':
     unittest.main()

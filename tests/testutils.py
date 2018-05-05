@@ -19,6 +19,7 @@
 
 
 import hashlib
+import logging
 from urllib import parse
 
 from arroyo import (
@@ -58,5 +59,10 @@ class TestApp(Application):
         if settings is None:
             settings = {}
 
-        settings[SettingsKey.DB_URI] = 'sqlite:///:memory:'
+        defaults = {
+            SettingsKey.DB_URI: 'sqlite:///:memory:',
+            SettingsKey.LOG_LEVEL: logging.CRITICAL
+        }
+
+        settings.update(defaults)
         super().__init__(settings)

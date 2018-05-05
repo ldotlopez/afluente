@@ -172,6 +172,7 @@ class Application(_BaseApplication):
         # 'commands.settings',
 
         'downloaders.mock',
+        'downloaders.transmission',
 
         'filters.episode',
         'filters.movie',

@@ -21,28 +21,12 @@
 # Documentation for transmissionrpc:
 # https://pythonhosted.org/transmissionrpc/reference/transmissionrpc.html
 
-
-# from arroyo import (
-#     bittorrentlib,
-#     downloads,
-#     pluginlib
-# )
-
-
-# from urllib import parse
-
-
-# import transmissionrpc
-# from appkit import (
-#     loggertools,
-#     store
-# )
-# from sqlalchemy import orm
-
-
-from arroyo import kit
-import arroyo.exc
 import transmissionrpc
+
+
+import arroyo
+import arroyo.exc
+import arroyo.extensions
 
 
 # Support for monkey patch transmissionrpc
@@ -70,11 +54,11 @@ transmissionrpc.torrent.Torrent.__str__ = tranmissionrpc_torrent___str__
 
 SETTINGS_NS = 'plugins.downloaders.transmission'
 STATE_MAP = {
-    'checking': kit.DownloadState.INITIALIZING,
-    'check pending': kit.DownloadState.INITIALIZING,
-    'download pending': kit.DownloadState.QUEUED,
-    'downloading': kit.DownloadState.DOWNLOADING,
-    'seeding': kit.DownloadState.SHARING,
+    'checking': arroyo.DownloadState.INITIALIZING,
+    'check pending': arroyo.DownloadState.INITIALIZING,
+    'download pending': arroyo.DownloadState.QUEUED,
+    'downloading': arroyo.DownloadState.DOWNLOADING,
+    'seeding': arroyo.DownloadState.SHARING,
     # other states need more logic
 }
 TRANSMISSION_API_ERROR_MSG = (
@@ -82,7 +66,7 @@ TRANSMISSION_API_ERROR_MSG = (
 )
 
 
-class TransmissionDownloader(kit.DownloaderExtension):
+class TransmissionDownloader(arroyo.extensions.DownloaderExtension):
     __extension_name__ = 'transmission'
 
     def __init__(self, shell, *args, **kwargs):
@@ -164,9 +148,9 @@ class TransmissionDownloader(kit.DownloaderExtension):
         #   isFinished attr can handle this
         if torrent.status == 'stopped':
             if torrent.progress < 100:
-                return kit.DownloadState.PAUSED
+                return arroyo.DownloadState.PAUSED
             else:
-                return kit.DownloadState.DONE
+                return arroyo.DownloadState.DONE
 
         state = torrent.status
 

@@ -20,22 +20,7 @@
 
 import appkit
 import arroyo
-
-
-class DuplicatedDownloadError(Exception):
-    """Requested download already exists
-
-    Raised by downloader plugins
-    """
-    pass
-
-
-class DownloadNotFoundError(Exception):
-    """Requested download doesn't exists
-
-    Raised by downloader plugins
-    """
-    pass
+import arroyo.exc
 
 
 class AlreadyDownloadedError(Exception):
@@ -124,7 +109,7 @@ class Downloads:
         self.sync()
 
         if source.download:
-            raise DuplicatedDownloadError()
+            raise arroyo.exc.DuplicatedDownloadError()
 
         foreign_id = self.plugin.add(source)
         foreign_id = '{name}:{fid}'.format(
@@ -145,7 +130,7 @@ class Downloads:
         downloads = self.list()
 
         if source not in downloads:
-            raise DownloadNotFoundError()
+            raise arroyo.exc.DownloadNotFoundError()
 
         plugin_id = self.strip_plugin_prefix(source.download.foreign_id)
         if delete:
@@ -185,7 +170,7 @@ class Downloads:
 
     def get_info(self, source):
         if not source.download:
-            raise DownloadNotFoundError()
+            raise arroyo.exc.DownloadNotFoundError()
 
         plugin_id = self.strip_plugin_prefix(source.download.foreign_id)
         info = self.plugin.get_info(plugin_id)
