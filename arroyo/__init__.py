@@ -18,7 +18,6 @@
 # USA.
 
 
-import abc
 import asyncio
 import contextlib
 import itertools
@@ -28,7 +27,6 @@ import re
 from urllib import parse
 
 
-import bs4
 import appkit
 import appkit.application
 import appkit.application.console
@@ -43,7 +41,6 @@ import yaml
 
 import arroyo.extensions
 import arroyo.helpers.database
-import arroyo.helpers.database
 import arroyo.helpers.downloads
 import arroyo.helpers.filterengine
 import arroyo.helpers.mediaparser
@@ -55,6 +52,18 @@ from arroyo.models import (
     Source,
     Variable
 )
+
+
+__all__ = [
+    'Application',
+    'CacheType',
+    'Download',
+    'DownloadState',
+    'Episode',
+    'SettingsKey',
+    'Source',
+    'Variable',
+]
 
 
 class SettingsKey:
@@ -157,16 +166,6 @@ class _BaseApplication(appkit.application.console.ConsoleApplicationMixin,
     def get_extension(self, extension_point, name, *args, **kwargs):
         kwargs['logger'] = self.logger.getChild(name)
         return super().get_extension(extension_point, name, *args, **kwargs)
-    #     # FIXME: This is a hack
-    #     # Parent logger can change its level to a lower level in the future.
-    #     # Since level doesnt propage to children (even with NOTSET level) we
-    #     # get the future level from settings
-    #     # NOTE: this is not dynamic.
-    #     self.logger.setLevel(self.get_shell().settings.get(SettingsKey.LOG_LEVEL))
-    #     try:
-    #         return super().get_extension(extension_point, name, *args, **kwargs)
-    #     except Exception as e:
-    #         import ipdb; ipdb.set_trace(); pass
 
 
 class Application(_BaseApplication):
@@ -382,10 +381,6 @@ class Application(_BaseApplication):
         return params
 
     def get_queries_from_config(self):
-        query_defaults = self.settings.get(arroyo.SettingsKey.QUERY_DEFAULTS,
-                                           {})
-        query_type_defaults = {}
-
         config_queries = self.settings.get(arroyo.SettingsKey.QUERIES, {})
 
         ret = []
@@ -396,7 +391,7 @@ class Application(_BaseApplication):
             params = self._get_base_query_params_from_type(query_type)
             params.update(query_params)
 
-            query = Query(**parms)
+            query = Query(**params)
             ret.append(query)
 
         return ret
