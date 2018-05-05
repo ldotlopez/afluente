@@ -119,7 +119,7 @@ class TransmissionDownloader(arroyo.extensions.DownloaderExtension):
         except StopIteration:
             pass
 
-        raise downloads.DownloadNotFoundError(hash_string)
+        raise arroyo.exc.DownloadNotFoundError(hash_string)
 
     def remove(self, hash_string, delete_data):
         # self.shield = {
@@ -134,7 +134,7 @@ class TransmissionDownloader(arroyo.extensions.DownloaderExtension):
             return True
         except transmissionrpc.error.TransmissionError as e:
             msg = TRANSMISSION_API_ERROR_MSG.format(message=e.original.message)
-            raise pluginlib.exc.PluginError(msg, e) from e
+            raise arroyo.exc.GenericPluginError(msg, e) from e
 
     def list(self):
         return [x.hashString for x in self.api.get_torrents()]
@@ -157,7 +157,7 @@ class TransmissionDownloader(arroyo.extensions.DownloaderExtension):
         if state not in STATE_MAP:
             msg = "Unknown state «{state}»."
             msg = msg.format(state=state)
-            raise pluginlib.exc.SelfCheckError(msg)
+            raise arroyo.exc.GenericPluginError(msg)
 
         return STATE_MAP[state]
 
