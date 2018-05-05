@@ -76,6 +76,57 @@ class DownloadConsoleCommand(CommandExtension):
             help='keywords')
     )
 
+    def process_query(self, query, manual=False, force=False):
+        # curr_log_level = self.shell.settings.get(arroyo.SettingsKey.LOG_LEVEL)
+        # curr_log_level = getattr(logging, curr_log_level)
+        # in_debug = curr_log_level <= logging.DEBUG
+
+        results = self.shell.search(query)
+        results = list(self.shell.filter(results, query))
+
+        if not results:
+            msg = "Looking for '{query}': no results found."
+            msg = msg.format(query=query)
+            self.logger.info(msg)
+            return
+
+        groups = self.shell.group(results)
+
+        msg = "Looking for '{query}': Found {n_total} matches in {n_groups} groups."
+        msg = msg.format(query=query, n_total=len(results), n_groups=len(groups))
+        self.logger.info(msg)
+
+        for (idx, (entity, srcs)) in enumerate(groups):
+            entity, srcs = self.merge(entity, srcs)
+
+            try:
+                selected = self.select(entity, srcs, query,
+                                       manual=manual, force=force)
+
+            except NoCandidatesFoundError as e:
+                msg = "No candidates found"
+                print(msg)
+                continue
+
+            except AlreadySelectedError as e:
+                msg = "Already downloading/downloaded"
+                print(msg)
+                continue
+
+            except CancelSelectionError as e:
+                continue
+
+            if selected is None:
+                msg = "No selection for {entity}"
+                msg = format(msg, entity=str(entity))
+                self.logger.info(msg)
+                continue
+
+            self.shell.download(selected)
+            msg = "Downloading {src}"
+            msg = msg.format(src=selected)
+            print(msg)
+
     def merge(self, entity, sources):
         if entity:
             entity = self.shell.db.merge(entity)
@@ -87,36 +138,44 @@ class DownloadConsoleCommand(CommandExtension):
 
     def select(self, entity, sources, query, manual=False, force=False):
         downloading = [src for src in sources if src.download]
-
         if downloading and not force:
-            msg = "{entity} already downloaded"
-            msg = msg.format(entity=str(entity))
-            print(msg)
-            return None
+            raise AlreadySelectedError()
 
-        if manual:
-            print(str(entity))
-            for (idx, src) in enumerate(sources):
+        not_dowloading = [src for src in sources if not src.download]
+
+        if not manual:
+            return self.shell.select(not_dowloading, query)
+
+        if not not_dowloading:
+            raise NoCandidatesFoundError()
+
+        msg = "Select one source for {entity}"
+        msg = msg.format(entity=entity)
+        print(msg)
+
+        while True:
+            for (idx, src) in enumerate(not_dowloading):
                 msg = "{idx}. {src}"
                 msg = msg.format(idx=idx+1, src=src)
                 print(msg)
-            print()
 
-            while True:
-                n = input("Selection? ")
-                try:
-                    n = int(n) - 1
-                    if n < 0:
-                        raise IndexError(n)
+            try:
+                n = int(input("? ")) - 1
+            except KeyboardInterrupt as e:
+                msg = "Canceled.\n"
+                print(msg)
+                raise CancelSelectionError() from e
+            except (ValueError, TypeError) as e:
+                msg = "Invalid selection. (control-c) to cancel selection"
+                print(msg)
+                continue
 
-                    selected = sources[int(n) - 1]
-                except (ValueError, IndexError):
-                    print("Value not valid")
-                    continue
+            if n < 0 or n >= len(not_dowloading):
+                msg = "Invalid selection. (control-c) to cancel selection"
+                print(msg)
+                continue
 
-                return selected
-
-        return self.shell.select(sources, query)
+            return not_dowloading[n]
 
     def main(self,
              list=False,
@@ -152,34 +211,7 @@ class DownloadConsoleCommand(CommandExtension):
                 raise NotImplementedError()
 
             for query in queries:
-                results = self.shell.search(query)
-                if not results:
-                    err = "No results found"
-                    self.shell.logger.error(err)
-                    return
-
-                results = self.shell.filter(results, query)
-
-                if not results:
-                    err = "No matching results found"
-                    self.shell.logger.error(err)
-                    return
-
-                groups = self.shell.group(results)
-                for (entity, srcs) in groups:
-                    entity, srcs = self.merge(entity, srcs)
-                    selected = self.select(entity, srcs, query,
-                                           manual=manual, force=force)
-
-                    if selected is None:
-                        msg = "No selection for {entity}"
-                        msg = msg.format(entity=str(entity))
-                        continue
-
-                    self.shell.download(selected)
-                    msg = "Downloading {src}"
-                    msg = msg.format(src=selected)
-                    print(msg)
+                self.process_query(query, manual=manual, force=force)
 
         else:
             raise NotImplementedError()
@@ -195,6 +227,18 @@ class DownloadConsoleCommand(CommandExtension):
                 print(msg)
                 i += 1
             print()
+
+
+class AlreadySelectedError(Exception):
+    pass
+
+
+class CancelSelectionError(Exception):
+    pass
+
+
+class NoCandidatesFoundError(Exception):
+    pass
 
 
 __arroyo_extensions__ = [
