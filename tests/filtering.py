@@ -138,7 +138,6 @@ class FilterEngineTest(unittest.TestCase):
         results = fe.filter(results, query)
         raise NotImplementedError()
 
-
 class TestQualityFilter(unittest.TestCase):
     def assertResults(self, filter_class, key, value, names, expected_indexes):
         srcs = [source(x) for x in names]

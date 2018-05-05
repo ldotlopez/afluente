@@ -25,6 +25,9 @@ import appkit.application
 import bs4
 
 
+import arroyo
+
+
 # Alias parameter
 Parameter = appkit.application.Parameter
 

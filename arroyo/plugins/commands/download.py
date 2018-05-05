@@ -18,14 +18,9 @@
 # USA.
 
 
-import pathlib
-
-
 import appkit
 
 
-import arroyo
-import arroyo.exc
 from arroyo.extensions import (
     CommandExtension,
     Parameter
@@ -144,7 +139,8 @@ class DownloadConsoleCommand(CommandExtension):
             if keywords:
                 keywords = ' '.join(keywords)
                 # Use type=None by default to allow autodetection of media type
-                queries = [self.shell.get_query_from_keywords(keywords, type=filters.get('type'))]
+                queries = [self.shell.get_query_from_keywords(
+                    keywords, type=filters.get('type'))]
 
             elif filters:
                 queries = [self.shell.get_query_from_params(**filters)]

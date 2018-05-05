@@ -19,13 +19,13 @@
 
 
 import collections
-import functools
 
 
 from appkit import Null
 
 
 import arroyo
+import arroyo.extensions
 
 
 class MissingFilterError(Exception):

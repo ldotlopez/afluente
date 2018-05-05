@@ -22,7 +22,6 @@ import asyncio
 import traceback
 import socket
 import sys
-from urllib import parse
 
 
 import aiohttp
@@ -33,6 +32,7 @@ from appkit.libs import urilib
 
 import arroyo
 import arroyo.bittorrentlib
+import arroyo.exc
 import arroyo.extensions
 
 

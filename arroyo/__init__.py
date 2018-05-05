@@ -106,7 +106,6 @@ class _BaseApplication(appkit.application.console.ConsoleApplicationMixin,
     """
     Implement our own features over appkit Application and Console Application
     """
-
     COMMAND_EXTENSION_POINT = arroyo.extensions.CommandExtension
 
     def load_plugin(self, plugin_name, *args, **kwargs):
@@ -210,6 +209,9 @@ class Application(_BaseApplication):
         for (key, value) in settings.items():
             store.set(key, value)
 
+        # if SettingsKey.PLUGINS not in settings:
+        #     settings[SettingsKey.PLUGINS] = {}
+
         super().__init__(
             name='arroyo',
             logger=QuickLogger(level=appkit.blocks.quicklogging.Level.WARNING),
@@ -249,11 +251,12 @@ class Application(_BaseApplication):
             CacheType.SCAN: appkit.blocks.cache.NullCache()
         }
 
-        for category in self.settings.children(
-                SettingsKey.PLUGINS_NS[:-1]):
-            for plugin in self.settings.children(
-                    SettingsKey.PLUGINS_NS + category):
+        plugin_categories = self.settings.children(SettingsKey.PLUGINS_NS[:-1])
 
+        for category in plugin_categories:
+            plugins = self.settings.children(SettingsKey.PLUGINS_NS + category)
+
+            for plugin in plugins:
                 key = '{plugins_ns}{category}.{plugin}.enabled'.format(
                     plugins_ns=SettingsKey.PLUGINS_NS,
                     category=category,
