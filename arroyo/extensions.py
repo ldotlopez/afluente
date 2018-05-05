@@ -34,16 +34,17 @@ class Extension(appkit.application.Extension):
     Our extensions class adds a built-in logger
     """
     def __init__(self, shell, *args, **kwargs):
-        # logger = kwargs.pop('logger')
+        logger = kwargs.pop('logger')
+
         super().__init__(shell, *args, **kwargs)
-        # self.logger = logger.getChild(self.__extension_name__)
+        self.logger = logger
 
         # FIXME: This is a hack
         # Parent logger can change its level to a lower level in the future.
         # Since level doesnt propage to children (even with NOTSET level) we
         # get the future level from settings
         # NOTE: this is not dynamic.
-        # self.logger.setLevel(shell.settings.get(SettingsKeys.LOG_LEVEL))
+        self.logger.setLevel(shell.settings.get(arroyo.SettingsKey.LOG_LEVEL))
 
 
 class DownloaderExtension(Extension):

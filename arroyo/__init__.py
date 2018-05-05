@@ -148,9 +148,9 @@ class _BaseApplication(appkit.application.console.ConsoleApplicationMixin,
     def main(self):
         print('arroyo is up and running')
 
-    # def get_extension(self, extension_point, name, *args, **kwargs):
-    #     kwargs['logger'] = self.logger.getChild(name)
-
+    def get_extension(self, extension_point, name, *args, **kwargs):
+        kwargs['logger'] = self.logger.getChild(name)
+        return super().get_extension(extension_point, name, *args, **kwargs)
     #     # FIXME: This is a hack
     #     # Parent logger can change its level to a lower level in the future.
     #     # Since level doesnt propage to children (even with NOTSET level) we
