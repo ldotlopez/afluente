@@ -131,15 +131,22 @@ class _BaseApplication(appkit.application.console.ConsoleApplicationMixin,
     def setup_parser(self, parser):
         super().setup_parser(parser)
         parser.add_argument(
+            '--downloader',
+            help='Downloader to use'
+        )
+        parser.add_argument(
             '--disable-cache',
             action='store_true',
             help='Disable all caches'
         )
 
     def consume_application_parameters(self, parameters):
-        enable_cache = not parameters.pop('disable_cache', False)
-        self.settings.set(SettingsKey.ENABLE_CACHE, enable_cache)
-        if enable_cache:
+        downloader = parameters.pop('downloader')
+        if isinstance(downloader, str) and downloader:
+            self.settings.set(SettingsKey.DOWNLOADER, downloader)
+
+        disable_cache = parameters.pop('disable_cache')
+        if disable_cache is True:
             self.caches[CacheType.SCAN] = ArroyoScanCache()
 
         super().consume_application_parameters(parameters)
@@ -298,9 +305,9 @@ class Application(_BaseApplication):
 
     @property
     def downloads(self):
-        downloader_name = self.settings.get(SettingsKey.DOWNLOADER)
+        name = self.settings.get(SettingsKey.DOWNLOADER)
         return arroyo.helpers.downloads.Downloads(
-            plugin=self.get_downloader(downloader_name),
+            plugin=self.get_downloader(name),
             db=self.db)
 
     #
@@ -350,6 +357,13 @@ class Application(_BaseApplication):
         return self.get_extension(arroyo.extensions.FilterExtension, name)
 
     def get_downloader(self, name):
+        # FIXME: this kind of stuff must be in settings validators.
+        # Remove this code once its implemented
+        if not isinstance(name, str) or not name:
+            msg = "Invalid downloader: '{name}"
+            msg = msg.format(name=repr(name))
+            raise ValueError(msg)
+
         return self.get_extension(arroyo.extensions.DownloaderExtension, name)
 
     def _get_base_query_params_from_type(self, type):
@@ -508,12 +522,6 @@ class Application(_BaseApplication):
 
     def get_downloads(self):
         return self.downloads.list()
-
-    def cancel(self, id_):
-        return self.downloads.cancel(id_)
-
-    def archive(self, id_):
-        return self.downloads.archive(id_)
 
     @contextlib.contextmanager
     def get_async_http_client(self):

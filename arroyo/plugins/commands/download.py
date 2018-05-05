@@ -21,6 +21,7 @@
 import appkit
 
 
+import arroyo
 from arroyo.extensions import (
     CommandExtension,
     Parameter
@@ -177,6 +178,13 @@ class DownloadConsoleCommand(CommandExtension):
 
             return not_dowloading[n]
 
+    def _id_to_source(self, id_):
+        id_ = int(id_)
+        return self.shell.db.session\
+            .query(arroyo.Source)\
+            .filter_by(id=id_)\
+            .one()
+
     def main(self,
              list=False,
              cancel=None, archive=None,
@@ -189,10 +197,10 @@ class DownloadConsoleCommand(CommandExtension):
                 print(dl.id, dl)
 
         elif cancel:
-            self.shell.cancel(cancel)
+            self.shell.downloads.cancel(self._id_to_source(cancel))
 
         elif archive:
-            self.shell.archive(archive)
+            self.shell.downloads.archive(self._id_to_source(archive))
 
         elif filters or keywords or from_config:
             if keywords:
