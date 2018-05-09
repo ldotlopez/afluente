@@ -206,7 +206,9 @@ class DownloadConsoleCommand(CommandExtension):
                 keywords = ' '.join(keywords)
                 # Use type=None by default to allow autodetection of media type
                 queries = [self.shell.get_query_from_keywords(
-                    keywords, type=filters.get('type'))]
+                    keywords,
+                    type=filters.pop('type', None),
+                    **filters)]
 
             elif filters:
                 queries = [self.shell.get_query_from_params(**filters)]
