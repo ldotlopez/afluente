@@ -51,3 +51,13 @@ class DownloadNotFoundError(Exception):
     Raised by downloader plugins
     """
     pass
+
+
+class MissingFilterError(Exception):
+    pass
+
+
+class ConflictingFilterError(Exception):
+    def __init__(self, collisions, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.collisions = collisions

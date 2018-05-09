@@ -22,10 +22,11 @@ import fnmatch
 import functools
 
 
+import arroyo
 import arroyo.extensions
 
 
-class SourceFieldFilters(arroyo.extensions.FilterExtension):
+class SourceFieldsFilter(arroyo.extensions.FilterExtension):
     __extension_name__ = 'sourcefields'
 
     HANDLES = (
@@ -52,12 +53,28 @@ class SourceFieldFilters(arroyo.extensions.FilterExtension):
         except KeyError:
             return False
 
+    def _type_match(self, key, value, item):
+        _map = {
+            'source': lambda x: isinstance(x, arroyo.Source),
+            'episode': lambda x: x.entity and isinstance(x.entity, arroyo.Episode),
+            'movie': lambda x: x.entity and isinstance(x.entity, arroyo.Movie),
+        }
+        try:
+            return _map[value](item)
+        except KeyError:
+            pass
+
+        raise ValueError((key, value))
+
     def apply(self, key, value, it):
-        if key in ('name', 'type', 'provider'):
+        if key in ('name', 'provider'):
             fn = functools.partial(self._exact_match, key, value)
 
         elif key in ('name_glob'):
             fn = functools.partial(self._glob_match, key[:-5], value.lower())
+
+        elif key == 'type':
+            fn = functools.partial(self._type_match, key, value.lower())
 
         else:
             raise ValueError(key)
@@ -67,4 +84,4 @@ class SourceFieldFilters(arroyo.extensions.FilterExtension):
             it)
 
 
-__arroyo_extensions__ = (SourceFieldFilters,)
+__arroyo_extensions__ = (SourceFieldsFilter,)

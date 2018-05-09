@@ -451,13 +451,13 @@ class Application(_BaseApplication):
 
         return results
 
-    def filter(self, results, query, ignore_state=False):
-        results = self.filters.filter(query, results)
-        if not ignore_state:
-            results = self.filters.apply(self.get_filter('state'),
-                                         None,
-                                         None,
-                                         results)
+    def filter(self, results, query):
+        results = self.filters.filter(results, query)
+        # if not ignore_state:
+        #     results = self.filters.apply(self.get_filter('state'),
+        #                                  None,
+        #                                  None,
+        #                                  results)
 
         return results
 

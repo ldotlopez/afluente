@@ -24,7 +24,7 @@ import functools
 import arroyo.extensions
 
 
-class Filter(arroyo.extensions.FilterExtension):
+class MovieFieldsFilter(arroyo.extensions.FilterExtension):
     __extension_name__ = 'movie'
 
     HANDLES = (
@@ -52,6 +52,4 @@ class Filter(arroyo.extensions.FilterExtension):
         return filter(lambda x: fn(x), it)
 
 
-__arroyo_extensions__ = [
-    Filter
-]
+__arroyo_extensions__ = (MovieFieldsFilter,)

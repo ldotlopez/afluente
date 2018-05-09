@@ -24,7 +24,7 @@ import functools
 import arroyo.extensions
 
 
-class EpisodeFieldFilters(arroyo.extensions.FilterExtension):
+class EpisodeFieldsFilter(arroyo.extensions.FilterExtension):
     __extension_name__ = 'episode'
 
     HANDLES = (
@@ -58,4 +58,4 @@ class EpisodeFieldFilters(arroyo.extensions.FilterExtension):
         return filter(lambda x: fn(x), it)
 
 
-__arroyo_extensions__ = (EpisodeFieldFilters,)
+__arroyo_extensions__ = (EpisodeFieldsFilter,)

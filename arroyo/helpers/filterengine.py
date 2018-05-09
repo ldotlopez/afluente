@@ -25,17 +25,8 @@ from appkit import Null
 
 
 import arroyo
+import arroyo.exc
 import arroyo.extensions
-
-
-class MissingFilterError(Exception):
-    pass
-
-
-class ConflictingFilterError(Exception):
-    def __init__(self, collisions, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.collisions = collisions
 
 
 class Engine:
@@ -57,7 +48,7 @@ class Engine:
         collisions = tuple(s2.intersection(s1))
 
         if collisions:
-            raise ConflictingFilterError(collisions)
+            raise arroyo.exc.ConflictingFilterError(collisions)
 
         self.registry.update({
             handle: filter for handle in filter.HANDLES
@@ -87,7 +78,7 @@ class Engine:
 
         return results
 
-    def filter(self, query, results):
+    def filter(self, results, query):
         if not isinstance(query, arroyo.Query):
             raise TypeError(query)
         if not isinstance(results, collections.Iterable):
@@ -126,11 +117,14 @@ class Engine:
 
         return results
 
+    def filter_by(self, sources, **params):
+        return self.filter(sources, arroyo.Query(**params))
+
     def get_for_handler(self, handler):
         try:
             return self.registry[handler]
         except KeyError as e:
-            raise MissingFilterError() from e
+            raise arroyo.exc.MissingFilterError() from e
 
     def get_for_query(self, query):
         matches = []
@@ -140,7 +134,7 @@ class Engine:
             try:
                 filter = self.get_for_handler(key)
                 matches.append((key, filter))
-            except MissingFilterError:
+            except arroyo.exc.MissingFilterError:
                 missing.append(key)
 
         return matches, missing

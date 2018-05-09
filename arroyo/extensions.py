@@ -21,6 +21,7 @@
 import abc
 
 
+import appkit
 import appkit.application
 import bs4
 
@@ -40,7 +41,7 @@ class Extension(appkit.application.Extension):
         logger = kwargs.pop('logger')
 
         super().__init__(shell, *args, **kwargs)
-        self.logger = logger
+        self.logger = logger or appkit.Null
 
         # FIXME: This is a hack
         # Parent logger can change its level to a lower level in the future.
