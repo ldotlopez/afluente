@@ -257,8 +257,8 @@ class MediaParser:
         # FIXME: Don't drop, save
         for k in ['language', 'part']:
             if isinstance(info.get(k), list):
-                msg = 'Drop multiple instances of {key} in {source}'
-                msg = msg.format(source=data['name'], key=k)
+                msg = 'Drop multiple instances of {key} in {name}'
+                msg = msg.format(name=name, key=k)
                 self.logger.warning(msg)
                 info[k] = info[k][0]
 
@@ -266,15 +266,15 @@ class MediaParser:
         # Integrate 'part' as episode in season 0
         if 'part' in info:
             if info.get('type') == 'movie':
-                msg = "Movie '{source}' has 'part'"
-                msg = msg.format(source=data['name'])
+                msg = "Movie '{name}' has 'part'"
+                msg = msg.format(name=name)
                 self.logger.warning(msg)
 
             elif info.get('type') == 'episode':
                 if 'season' in info:
-                    msg = ("Episode '{source}' has 'part' and 'season'")
+                    msg = ("Episode '{name}' has 'part' and 'season'")
                     msg = msg.format(
-                        source=data['name'], type=info.get('type') or '(None)'
+                        name=name, type=info.get('type') or '(None)'
                     )
                     self.logger.warning(msg)
                 else:
@@ -282,10 +282,10 @@ class MediaParser:
                     info['episode'] = info.pop('part')
 
             else:
-                msg = ("Source '{source}' has 'part' and an unknow "
+                msg = ("Source '{name}' has 'part' and an unknow "
                        "type: '{type}'")
                 msg = msg.format(
-                    source=data['name'], type=info.get('type') or '(None)'
+                    name=name, type=info.get('type') or '(None)'
                 )
                 self.logger.warning(msg)
 
