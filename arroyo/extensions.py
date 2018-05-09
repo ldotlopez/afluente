@@ -51,48 +51,6 @@ class Extension(appkit.application.Extension):
         self.logger.setLevel(shell.settings.get(arroyo.SettingsKey.LOG_LEVEL))
 
 
-class DownloaderExtension(Extension):
-    """
-    Extension for downloaders
-    """
-
-    def add(self, source):
-        """Adds source to download.
-
-        Must return True on successful or raise an Exception on failure
-        """
-        raise NotImplementedError()
-
-    def cancel(self, foreign_id):
-        """Cancels foreign ID and deletes any possible file
-
-        Must return True on successful or raise an Exception on failure
-        """
-        raise NotImplementedError()
-
-    def archive(self, foreign_id):
-        """Archives source to download, just remove it from downloader keeping
-        any possible files
-
-        Must return True on successful or raise an Exception on failure
-        """
-        raise NotImplementedError()
-
-    def list(self):
-        raise NotImplementedError()
-
-    def get_state(self, foreign_id):
-        raise NotImplementedError()
-
-    def get_info(self, foreign_id):
-        raise NotImplementedError()
-
-    def id_for_source(self, source):
-        """For tests. Returns an acceptable (even simulated or random) local ID
-        for this source"""
-        raise NotImplementedError()
-
-
 class BS4ParserProviderExtensionMixin:
     def parse(self, buffer):
         return self.parse_soup(bs4.BeautifulSoup(buffer, "html.parser"))
