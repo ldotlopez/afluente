@@ -30,7 +30,6 @@ from sqlalchemy import (
     Integer,
     String,
     ForeignKey,
-    CheckConstraint,
     and_,
     # event,
     func,
