@@ -131,7 +131,6 @@ class DownloadConsoleCommand(CommandExtension):
     def merge(self, entity, sources):
         if entity:
             entity = self.shell.db.merge(entity)
-            sources = entity.sources
         else:
             sources = [self.shell.db.merge(src) for src in sources]
 
