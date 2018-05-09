@@ -67,19 +67,20 @@ __all__ = [
 
 
 class SettingsKey:
+    COMMANDS_NS              = 'plugins.commands.'
+    FILTERS_NS               = 'plugins.filters.'
+    QUERIES_NS               = 'queries.'
+    PLUGINS_NS               = 'plugins.'
+    PROVIDERS_NS             = 'plugins.providers.'
     DB_URI                   = 'db-uri'
     DOWNLOADER               = 'downloader'
     ENABLE_CACHE             = 'enable-cache'
     LOG_LEVEL                = 'log-level'
+    PLUGINS                  = 'plugins'
     QUERY_DEFAULTS           = 'selector.query-defaults'
     QUERY_TYPE_DEFAULTS_TMPL = 'selector.query-{type}-defaults'
     QUERIES                  = 'queries'
-    QUERIES_NS               = 'queries.'
-    PLUGINS                  = 'plugins'
-    PLUGINS_NS               = 'plugins.'
-    FILTERS_NS               = 'plugins.filters.'
-    PROVIDERS_NS             = 'plugins.providers.'
-    COMMANDS_NS              = 'plugins.commands.'
+    SORTER                   = 'sorter'
 
 
 class CacheType:
@@ -188,18 +189,21 @@ class Application(_BaseApplication):
 
         'providers.epublibre',
         'providers.eztv',
-        'providers.torrentapi'
+        'providers.torrentapi',
+
+        'sorters.basic'
     ]
 
     DEFAULT_SETTINGS = {
-        SettingsKey.LOG_LEVEL: 'INFO',
         SettingsKey.COMMANDS_NS + 'settings.enabled': False,
-        SettingsKey.ENABLE_CACHE: True,
-        SettingsKey.DOWNLOADER: 'mock',
         SettingsKey.DB_URI: (
             'sqlite:///' +
             appkit.utils.user_path(
-                appkit.utils.UserPathType.DATA, 'arroyo.db', create=True))
+                appkit.utils.UserPathType.DATA, 'arroyo.db', create=True)),
+        SettingsKey.DOWNLOADER: 'mock',
+        SettingsKey.ENABLE_CACHE: True,
+        SettingsKey.LOG_LEVEL: 'INFO',
+        SettingsKey.SORTER: 'basic'
     }
 
     DEFAULT_SETTINGS.update({
@@ -242,9 +246,10 @@ class Application(_BaseApplication):
                                                                    db_sess)
 
         # Register extension points
+        self.register_extension_point(arroyo.extensions.DownloaderExtension)
         self.register_extension_point(arroyo.extensions.FilterExtension)
         self.register_extension_point(arroyo.extensions.ProviderExtension)
-        self.register_extension_point(arroyo.extensions.DownloaderExtension)
+        self.register_extension_point(arroyo.extensions.SorterExtension)
 
         # Initialize database controller
         self.db = arroyo.helpers.database.Database(db_sess)
@@ -292,14 +297,19 @@ class Application(_BaseApplication):
             logger=self.logger.getChild('mediaparser'))
 
     @property
-    def filters(self):
+    def selector(self):
         filters = self.get_filters()
         if not filters:
             msg = "No filters available"
             self.logger.error(msg)
+        filters = [filter for (_, filter) in filters]
+
+        sorter_name = self.settings.get(SettingsKey.SORTER)
+        sorter = self.get_sorter(sorter_name)
 
         return arroyo.helpers.filterengine.Engine(
-            filters=(x[1] for x in filters),
+            filters=filters,
+            sorter=sorter,
             logger=self.logger)
 
     @property
@@ -354,6 +364,9 @@ class Application(_BaseApplication):
 
     def get_filter(self, name):
         return self.get_extension(arroyo.extensions.FilterExtension, name)
+
+    def get_sorter(self, name):
+        return self.get_extension(arroyo.extensions.SorterExtension, name)
 
     def get_downloader(self, name):
         # FIXME: this kind of stuff must be in settings validators.
@@ -452,7 +465,7 @@ class Application(_BaseApplication):
         return results
 
     def filter(self, results, query):
-        results = self.filters.filter(results, query)
+        results = self.selector.filter(results, query)
         # if not ignore_state:
         #     results = self.filters.apply(self.get_filter('state'),
         #                                  None,
@@ -508,8 +521,8 @@ class Application(_BaseApplication):
 
         return ret
 
-    def select(select, options, query):
-        return options[0]
+    def select(self, sources, query):
+        return self.selector.sorted(sources, query)[0]
 
     def download(self, source):
         source = self.db.merge(source)
@@ -637,9 +650,9 @@ class Query:
             else:
                 # In any other cases we relay on mediaparser to build the query
                 parser = arroyo.helpers.mediaparser.MediaParser()
-                type, params, _, _ = parser.parse_name(args[0], hints=params)
-                params['type'] = type
-
+                entity_type_name, entity_params, _, _ = parser.parse_name(args[0], hints=params)
+                params.update(entity_params)
+                params['type'] = entity_type_name
         if 'type' not in params:
             params['type'] = 'source'
 

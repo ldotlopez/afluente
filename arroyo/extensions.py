@@ -123,7 +123,9 @@ class SorterExtension(Extension):
     """
     Extension for sorters
     """
-    pass
+    @abc.abstractmethod
+    def sort(self, sources, query):
+        return sources
 
 
 class ProviderExtension(Extension):

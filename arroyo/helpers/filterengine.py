@@ -30,17 +30,27 @@ import arroyo.extensions
 
 
 class Engine:
-    __slots__ = (
-        'logger',
-        'registry'
-    )
+    def __init__(self, filters=None, sorter=None, logger=None):
+        if filters is None:
+            errmsg = "At least one filter is required"
+            raise ValueError(filters, errmsg)
 
-    def __init__(self, filters=None, logger=None):
+        for filter in filters:
+            if not isinstance(filter, arroyo.extensions.FilterExtension):
+                errmsg = "Not a filter extension"
+                raise TypeError(filter, errmsg)
+
+        if not isinstance(sorter, arroyo.extensions.SorterExtension):
+            errmsg = "Not a sorter extension"
+            raise TypeError(sorter, errmsg)
+
         self.registry = {}
         self.logger = logger or Null
 
         for filter in filters or []:
             self.register(filter)
+
+        self.sorter = sorter
 
     def register(self, filter):
         s1 = set(filter.HANDLES)
@@ -138,3 +148,9 @@ class Engine:
                 missing.append(key)
 
         return matches, missing
+
+    def sorted(self, sources, query):
+        return self.sorter.sort(sources, query)
+
+    def sorted_by(self, sources, **params):
+        return self.sorted(sorted, arroyo.Query(**params))
