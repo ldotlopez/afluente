@@ -35,6 +35,8 @@ from arroyo.helpers.filterengine import Engine
 from arroyo.plugins.filters.source import SourceFieldsFilter
 from arroyo.plugins.filters.episode import EpisodeFieldsFilter
 from arroyo.plugins.filters.movie import MovieFieldsFilter
+from arroyo.plugins.sorters.basic import BasicSorter
+
 
 # class DumbFilterMixin(FilterExtension):
 #     __extension_name__ = 'typefilter'
@@ -85,12 +87,21 @@ class QueryTest(unittest.TestCase):
         self.assertEqual(q.name_glob, '*')
 
 
-class TestEngine(unittest.TestCase):
-    def get_engine(self, filters):
+class EngineUtilsMixin:
+    def get_engine(self, filters=None, sorter=None):
+        if filters is None:
+            filters = [SourceFieldsFilter]
+        if sorter is None:
+            sorter = BasicSorter
+
         # FIXME: shell can be null
         filters = [filter(shell=Null, logger=None) for filter in filters]
-        return Engine(filters=filters)
+        sorter = sorter(shell=Null, logger=None)
 
+        return Engine(filters=filters, sorter=sorter)
+
+
+class TestEngine(EngineUtilsMixin, unittest.TestCase):
     def test_basic_filter(self):
         sources = [s(x) for x in [
             'foo.txt',
@@ -100,6 +111,19 @@ class TestEngine(unittest.TestCase):
 
         res = engine.filter_by(sources, name_glob='*foo*')
         self.assertEqual(res[0], sources[0])
+
+
+class TestSelection(EngineUtilsMixin, unittest.TestCase):
+    def assertSelection(self, expected, sources):
+        sorted = self.get_engine().sorted(sources, None)
+        self.assertEqual(expected, sorted[0])
+
+    def test_proper(self):
+        sources = [s(x) for x in [
+            'the.handmaids.tale.s01e01.TeamA.mkv',
+            'the.handmaids.tale.s01e01.TeamA.PRoPeRmkv',
+        ]]
+        self.assertSelection(sources[1], sources)
 
 
 # class FilterEngineTest_(unittest.TestCase):
