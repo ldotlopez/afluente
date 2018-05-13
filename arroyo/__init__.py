@@ -176,6 +176,7 @@ class Application(_BaseApplication):
 
     DEFAULT_PLUGINS = [
         'commands.download',
+        'commands.queue',
         # 'commands.settings',
 
         'downloaders.mock',

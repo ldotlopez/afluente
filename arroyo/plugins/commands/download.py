@@ -20,8 +20,6 @@
 
 import appkit
 
-
-import arroyo
 from arroyo.extensions import (
     CommandExtension,
     Parameter
@@ -32,19 +30,6 @@ class DownloadConsoleCommand(CommandExtension):
     __extension_name__ = 'download'
 
     PARAMETERS = (
-        Parameter(
-            'list',
-            action='store_true',
-            help="Show current downloads"),
-
-        Parameter(
-            'cancel',
-            help="Cancel a download"),
-
-        Parameter(
-            'archive',
-            help="Cancel a download"),
-
         Parameter(
             'force',
             action='store_true',
@@ -177,31 +162,12 @@ class DownloadConsoleCommand(CommandExtension):
 
             return not_dowloading[n]
 
-    def _id_to_source(self, id_):
-        id_ = int(id_)
-        return self.shell.db.session\
-            .query(arroyo.Source)\
-            .filter_by(id=id_)\
-            .one()
-
     def main(self,
-             list=False,
-             cancel=None, archive=None,
              filters=None, keywords=None, from_config=False,
              force=False,
              manual=False):
 
-        if list:
-            for dl in self.shell.get_downloads():
-                print(dl.id, dl)
-
-        elif cancel:
-            self.shell.downloads.cancel(self._id_to_source(cancel))
-
-        elif archive:
-            self.shell.downloads.archive(self._id_to_source(archive))
-
-        elif filters or keywords or from_config:
+        if filters or keywords or from_config:
             if keywords:
                 keywords = ' '.join(keywords)
                 # Use type=None by default to allow autodetection of media type
