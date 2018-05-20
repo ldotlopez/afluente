@@ -352,10 +352,10 @@ class Application(_BaseApplication):
             override_value = self.settings.get(override_key, None)
 
             if default_value:
-                default_value[name][field] = default_value
+                defaults[field] = default_value
 
             if override_value:
-                overrides[name][field] = override_value
+                overrides[field] = override_value
 
         return self.get_extension(arroyo.extensions.ProviderExtension, name,
                                   defaults=defaults, overrides=overrides)
