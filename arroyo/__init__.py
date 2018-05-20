@@ -542,9 +542,15 @@ class ArroyoStore(appkit.blocks.store.Store):
     YAML compatible store
     """
 
+    def validate_key(self, key):
+        key = key.lower()
+        key = key.replace(' ', '-')
+        key = key.replace('\'', '-')
+        return super().validate_key(key)
+
     def load(self, stream):
         data = yaml.load(stream.read())
-        data = appkit.blocks.store.flatten_dict(data)
+        data = appkit.blocks.store.flatten_dict(data, self._separator)
 
         for (k, v) in data.items():
             self.set(k, v)
